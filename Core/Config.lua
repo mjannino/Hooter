@@ -98,6 +98,17 @@ function Hooter:SetTriggerEnabled(word, enabled)
     return true
 end
 
+function Hooter:RenameTrigger(oldWord, newWord)
+    oldWord = oldWord:lower()
+    newWord = newWord:lower()
+    if oldWord == newWord then return true end
+    if not self.db.triggers[oldWord] then return false, "Source not found" end
+    if self.db.triggers[newWord] then return false, "Target already exists" end
+    self.db.triggers[newWord] = self.db.triggers[oldWord]
+    self.db.triggers[oldWord] = nil
+    return true
+end
+
 function Hooter:GetTrigger(word)
     return self.db.triggers[word:lower()]
 end

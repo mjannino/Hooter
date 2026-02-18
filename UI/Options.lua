@@ -1,34 +1,8 @@
 local _, Hooter = ...
 
--- Cached references for the trigger list refresh
-local triggerListContent
-local selectedTrigger
-local responseListContent
-
--- Frame pools to avoid leaking frames on refresh
-local triggerFramePool = {}
-local responseFramePool = {}
-local activeTriggerFrames = {}
-local activeResponseFrames = {}
-
-local function AcquireFrame(pool, parent)
-    local f = table.remove(pool)
-    if f then
-        f:ClearAllPoints()
-        f:Show()
-        return f
-    end
-    return CreateFrame("Frame", nil, parent)
-end
-
-local function ReleaseFrames(pool, activeList)
-    for i = #activeList, 1, -1 do
-        activeList[i]:Hide()
-        activeList[i]:ClearAllPoints()
-        table.insert(pool, activeList[i])
-        activeList[i] = nil
-    end
-end
+-- Module-level selection state
+local selectedTrigger       -- string: currently selected trigger word (nil = none)
+local selectedResponseIdx   -- number: currently selected response index (nil = none)
 
 function Hooter:InitOptions()
     local panel = CreateFrame("Frame")
@@ -53,31 +27,15 @@ end
 -- Panel Builder
 ---------------------------------------------------------------------------
 function Hooter:BuildOptionsPanel(panel)
-    -- Outer scroll fills the canvas so content can exceed the ~569px window
-    local outerScroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
-    outerScroll:SetPoint("TOPLEFT", 0, 0)
-    outerScroll:SetPoint("BOTTOMRIGHT", -22, 0)
-
-    local outerContent = CreateFrame("Frame", nil, outerScroll)
-    outerContent:SetSize(1, 1)
-    outerScroll:SetScrollChild(outerContent)
-
-    outerScroll:SetScript("OnSizeChanged", function(frame)
-        local width = frame:GetWidth()
-        if width > 0 then
-            outerContent:SetWidth(width)
-        end
-    end)
-
     local yOffset = -16
 
     -- Title
-    local title = outerContent:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+    local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 16, yOffset)
     title:SetText("Hooter v" .. self.VERSION)
     yOffset = yOffset - 30
 
-    local subtitle = outerContent:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    local subtitle = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     subtitle:SetPoint("TOPLEFT", 16, yOffset)
     subtitle:SetText("Chat trigger auto-response addon with shareable configurations")
     yOffset = yOffset - 30
@@ -85,7 +43,7 @@ function Hooter:BuildOptionsPanel(panel)
     ---------------------------------------------------------------------------
     -- Enable/Disable Checkbox
     ---------------------------------------------------------------------------
-    local enableCB = CreateFrame("CheckButton", "HooterEnableCheck", outerContent, "UICheckButtonTemplate")
+    local enableCB = CreateFrame("CheckButton", "HooterEnableCheck", panel, "UICheckButtonTemplate")
     enableCB:SetPoint("TOPLEFT", 16, yOffset)
     enableCB.text = enableCB.text or enableCB:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     enableCB.text:SetPoint("LEFT", enableCB, "RIGHT", 4, 0)
@@ -100,7 +58,7 @@ function Hooter:BuildOptionsPanel(panel)
     -- Settings Sliders
     ---------------------------------------------------------------------------
     yOffset = yOffset - 10
-    local settingsHeader = outerContent:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    local settingsHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     settingsHeader:SetPoint("TOPLEFT", 16, yOffset)
     settingsHeader:SetText("Settings")
     yOffset = yOffset - 25
@@ -109,12 +67,12 @@ function Hooter:BuildOptionsPanel(panel)
     local minDelaySlider, maxDelaySlider
 
     -- Cooldown Slider
-    _, _, yOffset = self:CreateSlider(outerContent, "Cooldown (seconds)", 1, 30, 1, self.db.settings.cooldown, yOffset, function(value)
+    _, _, yOffset = self:CreateSlider(panel, "Cooldown (seconds)", 1, 30, 1, self.db.settings.cooldown, yOffset, function(value)
         Hooter.db.settings.cooldown = value
     end)
 
     -- Min Delay Slider
-    minDelaySlider, _, yOffset = self:CreateSlider(outerContent, "Min Delay (seconds)", 0.0, 5.0, 0.1, self.db.settings.minDelay, yOffset, function(value)
+    minDelaySlider, _, yOffset = self:CreateSlider(panel, "Min Delay (seconds)", 0.0, 5.0, 0.1, self.db.settings.minDelay, yOffset, function(value)
         Hooter.db.settings.minDelay = value
         -- Clamp max delay if min exceeds it
         if value > Hooter.db.settings.maxDelay then
@@ -124,7 +82,7 @@ function Hooter:BuildOptionsPanel(panel)
     end)
 
     -- Max Delay Slider
-    maxDelaySlider, _, yOffset = self:CreateSlider(outerContent, "Max Delay (seconds)", 0.0, 10.0, 0.1, self.db.settings.maxDelay, yOffset, function(value)
+    maxDelaySlider, _, yOffset = self:CreateSlider(panel, "Max Delay (seconds)", 0.0, 10.0, 0.1, self.db.settings.maxDelay, yOffset, function(value)
         Hooter.db.settings.maxDelay = value
         -- Clamp min delay if max is below it
         if value < Hooter.db.settings.minDelay then
@@ -137,31 +95,40 @@ function Hooter:BuildOptionsPanel(panel)
     -- Trigger Management
     ---------------------------------------------------------------------------
     yOffset = yOffset - 20
-    local trigHeader = outerContent:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    local trigHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     trigHeader:SetPoint("TOPLEFT", 16, yOffset)
     trigHeader:SetText("Triggers")
     yOffset = yOffset - 25
 
-    -- Button row: Add Trigger, Import, Export
-    local addBtn = CreateFrame("Button", nil, outerContent, "UIPanelButtonTemplate")
-    addBtn:SetSize(100, 22)
-    addBtn:SetPoint("TOPLEFT", 16, yOffset)
-    addBtn:SetText("Add Trigger")
+    -- Trigger dropdown + buttons row
+    local triggerDropdown = CreateFrame("Frame", "HooterTriggerDropdown", panel, "UIDropDownMenuTemplate")
+    UIDropDownMenu_SetWidth(triggerDropdown, 200)
+    triggerDropdown:SetPoint("TOPLEFT", 0, yOffset)
+    UIDropDownMenu_Initialize(triggerDropdown, function(dd, level)
+        Hooter:InitTriggerDropdown(dd, level)
+    end)
+    UIDropDownMenu_SetText(triggerDropdown, "Select a trigger")
+    self.triggerDropdown = triggerDropdown
+
+    local addBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    addBtn:SetSize(80, 22)
+    addBtn:SetPoint("LEFT", triggerDropdown, "RIGHT", -10, 2)
+    addBtn:SetText("Add")
     addBtn:SetScript("OnClick", function()
         StaticPopup_Show("HOOTER_ADD_TRIGGER")
     end)
 
-    local importBtn = CreateFrame("Button", nil, outerContent, "UIPanelButtonTemplate")
+    local importBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     importBtn:SetSize(80, 22)
-    importBtn:SetPoint("LEFT", addBtn, "RIGHT", 8, 0)
+    importBtn:SetPoint("LEFT", addBtn, "RIGHT", 4, 0)
     importBtn:SetText("Import")
     importBtn:SetScript("OnClick", function()
         Hooter:Cmd_import("")
     end)
 
-    local exportBtn = CreateFrame("Button", nil, outerContent, "UIPanelButtonTemplate")
+    local exportBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     exportBtn:SetSize(80, 22)
-    exportBtn:SetPoint("LEFT", importBtn, "RIGHT", 8, 0)
+    exportBtn:SetPoint("LEFT", importBtn, "RIGHT", 4, 0)
     exportBtn:SetText("Export")
     exportBtn:SetScript("OnClick", function()
         if not selectedTrigger then
@@ -174,62 +141,155 @@ function Hooter:BuildOptionsPanel(panel)
     yOffset = yOffset - 30
 
     ---------------------------------------------------------------------------
-    -- Trigger Scroll List
+    -- Trigger Edit Row (hidden when no trigger selected)
     ---------------------------------------------------------------------------
-    local triggerScroll = CreateFrame("ScrollFrame", "HooterTriggerScroll", outerContent, "UIPanelScrollFrameTemplate")
-    triggerScroll:SetPoint("TOPLEFT", 16, yOffset)
-    triggerScroll:SetPoint("TOPRIGHT", -48, yOffset)
-    triggerScroll:SetHeight(200)
+    local triggerEditRow = CreateFrame("Frame", nil, panel)
+    triggerEditRow:SetSize(500, 26)
+    triggerEditRow:SetPoint("TOPLEFT", 16, yOffset)
+    triggerEditRow:Hide()
+    self.triggerEditRow = triggerEditRow
 
-    triggerListContent = CreateFrame("Frame", nil, triggerScroll)
-    triggerListContent:SetSize(1, 1)
-    triggerScroll:SetScrollChild(triggerListContent)
+    local triggerEditBox = CreateFrame("EditBox", "HooterTriggerEditBox", triggerEditRow, "InputBoxTemplate")
+    triggerEditBox:SetSize(160, 20)
+    triggerEditBox:SetPoint("LEFT", 4, 0)
+    triggerEditBox:SetAutoFocus(false)
+    self.triggerEditBox = triggerEditBox
 
-    triggerScroll:SetScript("OnSizeChanged", function(frame)
-        local width = frame:GetWidth()
-        if width > 0 then
-            triggerListContent:SetWidth(width)
+    local renameBtn = CreateFrame("Button", nil, triggerEditRow, "UIPanelButtonTemplate")
+    renameBtn:SetSize(70, 22)
+    renameBtn:SetPoint("LEFT", triggerEditBox, "RIGHT", 8, 0)
+    renameBtn:SetText("Rename")
+    self.triggerRenameBtn = renameBtn
+    renameBtn:SetScript("OnClick", function()
+        if not selectedTrigger then return end
+        local newWord = triggerEditBox:GetText():lower():gsub("[^%w]", "")
+        if newWord == "" then
+            Hooter:PrintError("Invalid trigger name.")
+            return
+        end
+        local ok, err = Hooter:RenameTrigger(selectedTrigger, newWord)
+        if ok then
+            selectedTrigger = newWord
+            Hooter:RefreshTriggerList()
+        else
+            Hooter:PrintError(err or "Rename failed.")
+        end
+    end)
+    triggerEditBox:SetScript("OnEnterPressed", function()
+        renameBtn:Click()
+    end)
+
+    local trigDeleteBtn = CreateFrame("Button", nil, triggerEditRow, "UIPanelButtonTemplate")
+    trigDeleteBtn:SetSize(70, 22)
+    trigDeleteBtn:SetPoint("LEFT", renameBtn, "RIGHT", 4, 0)
+    trigDeleteBtn:SetText("Delete")
+    self.triggerDeleteBtn = trigDeleteBtn
+    trigDeleteBtn:SetScript("OnClick", function()
+        if not selectedTrigger then return end
+        Hooter:RemoveTrigger(selectedTrigger)
+        selectedTrigger = nil
+        selectedResponseIdx = nil
+        Hooter:RefreshTriggerList()
+    end)
+
+    local trigEnableCB = CreateFrame("CheckButton", "HooterTriggerEnableCB", triggerEditRow, "UICheckButtonTemplate")
+    trigEnableCB:SetPoint("LEFT", trigDeleteBtn, "RIGHT", 8, 0)
+    trigEnableCB.text = trigEnableCB.text or trigEnableCB:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    trigEnableCB.text:SetPoint("LEFT", trigEnableCB, "RIGHT", 2, 0)
+    trigEnableCB.text:SetText("Enabled")
+    self.triggerEnableCB = trigEnableCB
+    trigEnableCB:SetScript("OnClick", function(cb)
+        if selectedTrigger then
+            Hooter:SetTriggerEnabled(selectedTrigger, cb:GetChecked())
             Hooter:RefreshTriggerList()
         end
     end)
 
-    yOffset = yOffset - 210
+    yOffset = yOffset - 30
 
     ---------------------------------------------------------------------------
-    -- Response Editor (shown when trigger selected)
+    -- Response Section
     ---------------------------------------------------------------------------
-    local respHeader = outerContent:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    local respHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     respHeader:SetPoint("TOPLEFT", 16, yOffset)
-    respHeader:SetText("Responses")
+    respHeader:SetText("Responses (select a trigger)")
     self.respHeaderLabel = respHeader
     yOffset = yOffset - 25
 
-    local respScroll = CreateFrame("ScrollFrame", "HooterResponseScroll", outerContent, "UIPanelScrollFrameTemplate")
-    respScroll:SetPoint("TOPLEFT", 16, yOffset)
-    respScroll:SetPoint("TOPRIGHT", -48, yOffset)
-    respScroll:SetHeight(120)
+    -- Response dropdown
+    local responseDropdown = CreateFrame("Frame", "HooterResponseDropdown", panel, "UIDropDownMenuTemplate")
+    UIDropDownMenu_SetWidth(responseDropdown, 350)
+    responseDropdown:SetPoint("TOPLEFT", 0, yOffset)
+    UIDropDownMenu_Initialize(responseDropdown, function(dd, level)
+        Hooter:InitResponseDropdown(dd, level)
+    end)
+    UIDropDownMenu_SetText(responseDropdown, "Select a response")
+    self.responseDropdown = responseDropdown
 
-    responseListContent = CreateFrame("Frame", nil, respScroll)
-    responseListContent:SetSize(1, 1)
-    respScroll:SetScrollChild(responseListContent)
+    yOffset = yOffset - 30
 
-    respScroll:SetScript("OnSizeChanged", function(frame)
-        local width = frame:GetWidth()
-        if width > 0 then
-            responseListContent:SetWidth(width)
+    ---------------------------------------------------------------------------
+    -- Response Edit Row (hidden when no response selected)
+    ---------------------------------------------------------------------------
+    local respEditRow = CreateFrame("Frame", nil, panel)
+    respEditRow:SetSize(500, 26)
+    respEditRow:SetPoint("TOPLEFT", 16, yOffset)
+    respEditRow:Hide()
+    self.respEditRow = respEditRow
+
+    local respEditBox = CreateFrame("EditBox", "HooterRespEditBox", respEditRow, "InputBoxTemplate")
+    respEditBox:SetSize(300, 20)
+    respEditBox:SetPoint("LEFT", 4, 0)
+    respEditBox:SetAutoFocus(false)
+    self.respEditBox = respEditBox
+
+    local respSaveBtn = CreateFrame("Button", nil, respEditRow, "UIPanelButtonTemplate")
+    respSaveBtn:SetSize(60, 22)
+    respSaveBtn:SetPoint("LEFT", respEditBox, "RIGHT", 8, 0)
+    respSaveBtn:SetText("Save")
+    self.respSaveBtn = respSaveBtn
+    respSaveBtn:SetScript("OnClick", function()
+        if not selectedTrigger or not selectedResponseIdx then return end
+        local trigger = Hooter:GetTrigger(selectedTrigger)
+        if not trigger then return end
+        local text = respEditBox:GetText()
+        if text and text ~= "" then
+            trigger.responses[selectedResponseIdx] = text
+            Hooter:RefreshResponseList()
+        end
+    end)
+    respEditBox:SetScript("OnEnterPressed", function()
+        respSaveBtn:Click()
+    end)
+
+    local respDeleteBtn = CreateFrame("Button", nil, respEditRow, "UIPanelButtonTemplate")
+    respDeleteBtn:SetSize(70, 22)
+    respDeleteBtn:SetPoint("LEFT", respSaveBtn, "RIGHT", 4, 0)
+    respDeleteBtn:SetText("Delete")
+    self.respDeleteBtn = respDeleteBtn
+    respDeleteBtn:SetScript("OnClick", function()
+        if not selectedTrigger or not selectedResponseIdx then return end
+        Hooter:RemoveResponse(selectedTrigger, selectedResponseIdx)
+        selectedResponseIdx = nil
+        if not Hooter:GetTrigger(selectedTrigger) then
+            selectedTrigger = nil
+            Hooter:RefreshTriggerList()
+        else
             Hooter:RefreshResponseList()
         end
     end)
 
-    yOffset = yOffset - 130
+    yOffset = yOffset - 30
 
-    -- Add Response editbox + button
-    local addRespBox = CreateFrame("EditBox", "HooterAddRespBox", outerContent, "InputBoxTemplate")
+    ---------------------------------------------------------------------------
+    -- Add Response Row
+    ---------------------------------------------------------------------------
+    local addRespBox = CreateFrame("EditBox", "HooterAddRespBox", panel, "InputBoxTemplate")
     addRespBox:SetSize(300, 20)
     addRespBox:SetPoint("TOPLEFT", 20, yOffset)
     addRespBox:SetAutoFocus(false)
 
-    local addRespBtn = CreateFrame("Button", nil, outerContent, "UIPanelButtonTemplate")
+    local addRespBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     addRespBtn:SetSize(100, 22)
     addRespBtn:SetPoint("LEFT", addRespBox, "RIGHT", 8, 0)
     addRespBtn:SetText("Add Response")
@@ -250,15 +310,8 @@ function Hooter:BuildOptionsPanel(panel)
         addRespBtn:Click()
     end)
 
-    self.triggerListContent = triggerListContent
-    self.responseListContent = responseListContent
-
-    -- Set outer scroll child height so the scrollbar knows the content size
-    outerContent:SetHeight(math.abs(yOffset) + 16)
-
     -- Static Popups
     self:RegisterPopups()
-
 end
 
 ---------------------------------------------------------------------------
@@ -298,19 +351,10 @@ function Hooter:CreateSlider(parent, label, minVal, maxVal, step, currentVal, yO
 end
 
 ---------------------------------------------------------------------------
--- Trigger List
+-- Trigger Dropdown Initializer
 ---------------------------------------------------------------------------
-function Hooter:RefreshTriggerList()
-    if not self.triggerListContent then return end
-    local content = self.triggerListContent
-    local contentWidth = content:GetWidth()
-    if contentWidth < 1 then return end
-
-    ReleaseFrames(triggerFramePool, activeTriggerFrames)
-
-    local yOff = 0
+function Hooter:InitTriggerDropdown(dropdown, level)
     local triggers = self:GetAllTriggers()
-
     local sortedKeys = {}
     for word in pairs(triggers) do
         table.insert(sortedKeys, word)
@@ -318,124 +362,116 @@ function Hooter:RefreshTriggerList()
     table.sort(sortedKeys)
 
     for _, word in ipairs(sortedKeys) do
+        local info = UIDropDownMenu_CreateInfo()
         local data = triggers[word]
-        local row = AcquireFrame(triggerFramePool, content)
-        table.insert(activeTriggerFrames, row)
-        row:SetSize(contentWidth, 24)
-        row:SetPoint("TOPLEFT", 0, yOff)
-
-        if not row.initialized then
-            row.cb = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
-            row.cb:SetSize(24, 24)
-            row.cb:SetPoint("LEFT", 0, 0)
-
-            row.nameLabel = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-            row.nameLabel:SetPoint("LEFT", row.cb, "RIGHT", 4, 0)
-            row.nameLabel:SetPoint("RIGHT", row, "RIGHT", -115, 0)
-            row.nameLabel:SetJustifyH("LEFT")
-            row.nameLabel:SetWordWrap(false)
-
-            row.editBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-            row.editBtn:SetSize(50, 20)
-            row.editBtn:SetPoint("RIGHT", row, "RIGHT", -60, 0)
-            row.editBtn:SetText("Edit")
-
-            row.delBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-            row.delBtn:SetSize(55, 20)
-            row.delBtn:SetPoint("RIGHT", row, "RIGHT", 0, 0)
-            row.delBtn:SetText("Delete")
-
-            row.initialized = true
-        end
-
-        row.cb:SetChecked(data.enabled)
-        row.cb:SetScript("OnClick", function()
-            Hooter:SetTriggerEnabled(word, row.cb:GetChecked())
-        end)
-        row.nameLabel:SetText("|cff00ccff!" .. word .. "|r  (" .. #data.responses .. " responses)")
-        row.editBtn:SetScript("OnClick", function()
-            selectedTrigger = word
-            Hooter.respHeaderLabel:SetText("Responses for |cff00ccff!" .. word .. "|r")
+        local status = data.enabled and "|cff00ff00ON|r" or "|cffff0000OFF|r"
+        info.text = "!" .. word .. " (" .. #data.responses .. ") " .. status
+        info.value = word
+        info.func = function(btn)
+            selectedTrigger = btn.value
+            selectedResponseIdx = nil
+            UIDropDownMenu_SetSelectedValue(dropdown, btn.value)
+            Hooter:UpdateTriggerEditArea()
             Hooter:RefreshResponseList()
-        end)
-        row.delBtn:SetScript("OnClick", function()
-            Hooter:RemoveTrigger(word)
-            if selectedTrigger == word then
-                selectedTrigger = nil
-                Hooter:RefreshResponseList()
-            end
-            Hooter:RefreshTriggerList()
-        end)
-
-        yOff = yOff - 26
+        end
+        UIDropDownMenu_AddButton(info, level)
     end
-
-    content:SetHeight(math.max(1, math.abs(yOff)))
 end
 
 ---------------------------------------------------------------------------
--- Response List
+-- Response Dropdown Initializer
 ---------------------------------------------------------------------------
-function Hooter:RefreshResponseList()
-    if not self.responseListContent then return end
-    local content = self.responseListContent
-    local contentWidth = content:GetWidth()
-    if contentWidth < 1 then return end
-
-    ReleaseFrames(responseFramePool, activeResponseFrames)
-
-    if not selectedTrigger then
-        self.respHeaderLabel:SetText("Responses (select a trigger)")
-        return
-    end
-
+function Hooter:InitResponseDropdown(dropdown, level)
+    if not selectedTrigger then return end
     local trigger = self:GetTrigger(selectedTrigger)
-    if not trigger then
-        selectedTrigger = nil
-        self.respHeaderLabel:SetText("Responses (select a trigger)")
-        return
-    end
+    if not trigger then return end
 
-    local yOff = 0
     for i, resp in ipairs(trigger.responses) do
-        local row = AcquireFrame(responseFramePool, content)
-        table.insert(activeResponseFrames, row)
-        row:SetSize(contentWidth, 22)
-        row:SetPoint("TOPLEFT", 0, yOff)
-
-        if not row.initialized then
-            row.idx = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-            row.idx:SetPoint("LEFT", 4, 0)
-
-            row.respText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-            row.respText:SetPoint("LEFT", 24, 0)
-            row.respText:SetPoint("RIGHT", row, "RIGHT", -60, 0)
-            row.respText:SetJustifyH("LEFT")
-            row.respText:SetWordWrap(false)
-
-            row.delBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-            row.delBtn:SetSize(55, 20)
-            row.delBtn:SetPoint("RIGHT", row, "RIGHT", 0, 0)
-            row.delBtn:SetText("Delete")
-
-            row.initialized = true
+        local info = UIDropDownMenu_CreateInfo()
+        local display = resp
+        if #display > 60 then
+            display = display:sub(1, 57) .. "..."
         end
-
-        row.idx:SetText(i .. ".")
-        row.respText:SetText(resp)
-        row.delBtn:SetScript("OnClick", function()
-            Hooter:RemoveResponse(selectedTrigger, i)
-            if not Hooter:GetTrigger(selectedTrigger) then
-                selectedTrigger = nil
-                Hooter:RefreshTriggerList()
-            end
-            Hooter:RefreshResponseList()
-        end)
-
-        yOff = yOff - 24
+        info.text = i .. ". " .. display
+        info.value = i
+        info.func = function(btn)
+            selectedResponseIdx = btn.value
+            UIDropDownMenu_SetSelectedValue(dropdown, btn.value)
+            Hooter:UpdateResponseEditArea()
+        end
+        UIDropDownMenu_AddButton(info, level)
     end
+end
 
-    content:SetHeight(math.max(1, math.abs(yOff)))
+---------------------------------------------------------------------------
+-- Refresh Functions (names kept for Commands.lua compatibility)
+---------------------------------------------------------------------------
+function Hooter:RefreshTriggerList()
+    if not self.triggerDropdown then return end
+    UIDropDownMenu_Initialize(self.triggerDropdown, function(dd, level)
+        Hooter:InitTriggerDropdown(dd, level)
+    end)
+    -- Validate selection still exists
+    if selectedTrigger and not self:GetTrigger(selectedTrigger) then
+        selectedTrigger = nil
+        selectedResponseIdx = nil
+    end
+    if selectedTrigger then
+        UIDropDownMenu_SetSelectedValue(self.triggerDropdown, selectedTrigger)
+    else
+        UIDropDownMenu_SetText(self.triggerDropdown, "Select a trigger")
+    end
+    self:UpdateTriggerEditArea()
+    self:RefreshResponseList()
+end
+
+function Hooter:RefreshResponseList()
+    if not self.responseDropdown then return end
+    UIDropDownMenu_Initialize(self.responseDropdown, function(dd, level)
+        Hooter:InitResponseDropdown(dd, level)
+    end)
+    -- Validate selection
+    if selectedResponseIdx then
+        local trigger = selectedTrigger and self:GetTrigger(selectedTrigger)
+        if not trigger or selectedResponseIdx > #trigger.responses then
+            selectedResponseIdx = nil
+        end
+    end
+    if selectedResponseIdx then
+        UIDropDownMenu_SetSelectedValue(self.responseDropdown, selectedResponseIdx)
+    else
+        UIDropDownMenu_SetText(self.responseDropdown, "Select a response")
+    end
+    self:UpdateResponseEditArea()
+end
+
+---------------------------------------------------------------------------
+-- Edit Area Visibility
+---------------------------------------------------------------------------
+function Hooter:UpdateTriggerEditArea()
+    if not self.triggerEditRow then return end
+    if selectedTrigger and self:GetTrigger(selectedTrigger) then
+        self.triggerEditRow:Show()
+        self.triggerEditBox:SetText(selectedTrigger)
+        self.triggerEnableCB:SetChecked(self:GetTrigger(selectedTrigger).enabled)
+        self.respHeaderLabel:SetText("Responses for |cff00ccff!" .. selectedTrigger .. "|r")
+    else
+        self.triggerEditRow:Hide()
+        self.respHeaderLabel:SetText("Responses (select a trigger)")
+    end
+end
+
+function Hooter:UpdateResponseEditArea()
+    if not self.respEditRow then return end
+    if selectedResponseIdx and selectedTrigger then
+        local trigger = self:GetTrigger(selectedTrigger)
+        if trigger and trigger.responses[selectedResponseIdx] then
+            self.respEditRow:Show()
+            self.respEditBox:SetText(trigger.responses[selectedResponseIdx])
+            return
+        end
+    end
+    self.respEditRow:Hide()
 end
 
 ---------------------------------------------------------------------------
@@ -457,9 +493,8 @@ function Hooter:RegisterPopups()
                         Hooter.db.triggers[word] = { enabled = true, responses = {} }
                     end
                     selectedTrigger = word
+                    selectedResponseIdx = nil
                     Hooter:RefreshTriggerList()
-                    Hooter:RefreshResponseList()
-                    Hooter.respHeaderLabel:SetText("Responses for |cff00ccff!" .. word .. "|r")
                 end
             end
         end,

@@ -14,6 +14,9 @@ read_globals = {
     "UIParent", "LibStub",
     "GameFontNormal", "GameFontNormalLarge",
     "GameFontHighlight", "GameFontHighlightSmall", "ChatFontNormal",
+    "UIDropDownMenu_Initialize", "UIDropDownMenu_SetWidth",
+    "UIDropDownMenu_SetText", "UIDropDownMenu_SetSelectedValue",
+    "UIDropDownMenu_CreateInfo", "UIDropDownMenu_AddButton",
 }
 
 globals = {
