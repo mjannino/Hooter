@@ -159,12 +159,20 @@ function Hooter:BuildOptionsPanel(panel)
     ---------------------------------------------------------------------------
     local triggerScroll = CreateFrame("ScrollFrame", "HooterTriggerScroll", panel, "UIPanelScrollFrameTemplate")
     triggerScroll:SetPoint("TOPLEFT", 16, yOffset)
-    triggerScroll:SetPoint("TOPRIGHT", -32, yOffset)
+    triggerScroll:SetPoint("TOPRIGHT", -48, yOffset)
     triggerScroll:SetHeight(200)
 
     triggerListContent = CreateFrame("Frame", nil, triggerScroll)
-    triggerListContent:SetSize(triggerScroll:GetWidth() or 500, 1)
+    triggerListContent:SetSize(1, 1)
     triggerScroll:SetScrollChild(triggerListContent)
+
+    triggerScroll:SetScript("OnSizeChanged", function(frame)
+        local width = frame:GetWidth()
+        if width > 0 then
+            triggerListContent:SetWidth(width)
+            Hooter:RefreshTriggerList()
+        end
+    end)
 
     yOffset = yOffset - 210
 
@@ -179,12 +187,20 @@ function Hooter:BuildOptionsPanel(panel)
 
     local respScroll = CreateFrame("ScrollFrame", "HooterResponseScroll", panel, "UIPanelScrollFrameTemplate")
     respScroll:SetPoint("TOPLEFT", 16, yOffset)
-    respScroll:SetPoint("TOPRIGHT", -32, yOffset)
+    respScroll:SetPoint("TOPRIGHT", -48, yOffset)
     respScroll:SetHeight(120)
 
     responseListContent = CreateFrame("Frame", nil, respScroll)
-    responseListContent:SetSize(respScroll:GetWidth() or 500, 1)
+    responseListContent:SetSize(1, 1)
     respScroll:SetScrollChild(responseListContent)
+
+    respScroll:SetScript("OnSizeChanged", function(frame)
+        local width = frame:GetWidth()
+        if width > 0 then
+            responseListContent:SetWidth(width)
+            Hooter:RefreshResponseList()
+        end
+    end)
 
     yOffset = yOffset - 130
 
@@ -221,8 +237,6 @@ function Hooter:BuildOptionsPanel(panel)
     -- Static Popups
     self:RegisterPopups()
 
-    -- Initial population
-    self:RefreshTriggerList()
 end
 
 ---------------------------------------------------------------------------
@@ -267,48 +281,61 @@ end
 function Hooter:RefreshTriggerList()
     if not self.triggerListContent then return end
     local content = self.triggerListContent
+    local contentWidth = content:GetWidth()
+    if contentWidth < 1 then return end
 
     ReleaseFrames(triggerFramePool, content)
 
     local yOff = 0
     local triggers = self:GetAllTriggers()
 
-    for word, data in pairs(triggers) do
+    local sortedKeys = {}
+    for word in pairs(triggers) do
+        table.insert(sortedKeys, word)
+    end
+    table.sort(sortedKeys)
+
+    for _, word in ipairs(sortedKeys) do
+        local data = triggers[word]
         local row = AcquireFrame(triggerFramePool, content)
-        row:SetSize(content:GetWidth() or 460, 24)
+        row:SetSize(contentWidth, 24)
         row:SetPoint("TOPLEFT", 0, yOff)
 
-        -- Enable checkbox
-        local cb = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
-        cb:SetSize(24, 24)
-        cb:SetPoint("LEFT", 0, 0)
-        cb:SetChecked(data.enabled)
-        cb:SetScript("OnClick", function()
-            Hooter:SetTriggerEnabled(word, cb:GetChecked())
+        if not row.initialized then
+            row.cb = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
+            row.cb:SetSize(24, 24)
+            row.cb:SetPoint("LEFT", 0, 0)
+
+            row.nameLabel = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+            row.nameLabel:SetPoint("LEFT", row.cb, "RIGHT", 4, 0)
+            row.nameLabel:SetPoint("RIGHT", row, "RIGHT", -115, 0)
+            row.nameLabel:SetJustifyH("LEFT")
+            row.nameLabel:SetWordWrap(false)
+
+            row.editBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+            row.editBtn:SetSize(50, 20)
+            row.editBtn:SetPoint("RIGHT", row, "RIGHT", -60, 0)
+            row.editBtn:SetText("Edit")
+
+            row.delBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+            row.delBtn:SetSize(55, 20)
+            row.delBtn:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+            row.delBtn:SetText("Delete")
+
+            row.initialized = true
+        end
+
+        row.cb:SetChecked(data.enabled)
+        row.cb:SetScript("OnClick", function()
+            Hooter:SetTriggerEnabled(word, row.cb:GetChecked())
         end)
-
-        -- Trigger name
-        local nameLabel = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-        nameLabel:SetPoint("LEFT", cb, "RIGHT", 4, 0)
-        nameLabel:SetText("|cff00ccff!" .. word .. "|r  (" .. #data.responses .. " responses)")
-
-        -- Edit button
-        local editBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-        editBtn:SetSize(50, 20)
-        editBtn:SetPoint("RIGHT", row, "RIGHT", -60, 0)
-        editBtn:SetText("Edit")
-        editBtn:SetScript("OnClick", function()
+        row.nameLabel:SetText("|cff00ccff!" .. word .. "|r  (" .. #data.responses .. " responses)")
+        row.editBtn:SetScript("OnClick", function()
             selectedTrigger = word
             Hooter.respHeaderLabel:SetText("Responses for |cff00ccff!" .. word .. "|r")
             Hooter:RefreshResponseList()
         end)
-
-        -- Delete button
-        local delBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-        delBtn:SetSize(55, 20)
-        delBtn:SetPoint("RIGHT", row, "RIGHT", 0, 0)
-        delBtn:SetText("Delete")
-        delBtn:SetScript("OnClick", function()
+        row.delBtn:SetScript("OnClick", function()
             Hooter:RemoveTrigger(word)
             if selectedTrigger == word then
                 selectedTrigger = nil
@@ -329,6 +356,8 @@ end
 function Hooter:RefreshResponseList()
     if not self.responseListContent then return end
     local content = self.responseListContent
+    local contentWidth = content:GetWidth()
+    if contentWidth < 1 then return end
 
     ReleaseFrames(responseFramePool, content)
 
@@ -347,26 +376,31 @@ function Hooter:RefreshResponseList()
     local yOff = 0
     for i, resp in ipairs(trigger.responses) do
         local row = AcquireFrame(responseFramePool, content)
-        row:SetSize(content:GetWidth() or 460, 22)
+        row:SetSize(contentWidth, 22)
         row:SetPoint("TOPLEFT", 0, yOff)
 
-        local idx = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-        idx:SetPoint("LEFT", 4, 0)
-        idx:SetText(i .. ".")
+        if not row.initialized then
+            row.idx = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+            row.idx:SetPoint("LEFT", 4, 0)
 
-        local respText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-        respText:SetPoint("LEFT", 24, 0)
-        respText:SetPoint("RIGHT", row, "RIGHT", -60, 0)
-        respText:SetJustifyH("LEFT")
-        respText:SetText(resp)
+            row.respText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+            row.respText:SetPoint("LEFT", 24, 0)
+            row.respText:SetPoint("RIGHT", row, "RIGHT", -60, 0)
+            row.respText:SetJustifyH("LEFT")
+            row.respText:SetWordWrap(false)
 
-        local delBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-        delBtn:SetSize(55, 20)
-        delBtn:SetPoint("RIGHT", row, "RIGHT", 0, 0)
-        delBtn:SetText("Delete")
-        delBtn:SetScript("OnClick", function()
+            row.delBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+            row.delBtn:SetSize(55, 20)
+            row.delBtn:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+            row.delBtn:SetText("Delete")
+
+            row.initialized = true
+        end
+
+        row.idx:SetText(i .. ".")
+        row.respText:SetText(resp)
+        row.delBtn:SetScript("OnClick", function()
             Hooter:RemoveResponse(selectedTrigger, i)
-            -- Trigger may have been deleted if last response removed
             if not Hooter:GetTrigger(selectedTrigger) then
                 selectedTrigger = nil
                 Hooter:RefreshTriggerList()
