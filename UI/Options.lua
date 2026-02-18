@@ -8,22 +8,25 @@ local responseListContent
 -- Frame pools to avoid leaking frames on refresh
 local triggerFramePool = {}
 local responseFramePool = {}
+local activeTriggerFrames = {}
+local activeResponseFrames = {}
 
 local function AcquireFrame(pool, parent)
     local f = table.remove(pool)
     if f then
-        f:SetParent(parent)
+        f:ClearAllPoints()
         f:Show()
         return f
     end
     return CreateFrame("Frame", nil, parent)
 end
 
-local function ReleaseFrames(pool, content)
-    for _, child in ipairs({content:GetChildren()}) do
-        child:Hide()
-        child:SetParent(nil)
-        table.insert(pool, child)
+local function ReleaseFrames(pool, activeList)
+    for i = #activeList, 1, -1 do
+        activeList[i]:Hide()
+        activeList[i]:ClearAllPoints()
+        table.insert(pool, activeList[i])
+        activeList[i] = nil
     end
 end
 
@@ -50,15 +53,31 @@ end
 -- Panel Builder
 ---------------------------------------------------------------------------
 function Hooter:BuildOptionsPanel(panel)
+    -- Outer scroll fills the canvas so content can exceed the ~569px window
+    local outerScroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
+    outerScroll:SetPoint("TOPLEFT", 0, 0)
+    outerScroll:SetPoint("BOTTOMRIGHT", -22, 0)
+
+    local outerContent = CreateFrame("Frame", nil, outerScroll)
+    outerContent:SetSize(1, 1)
+    outerScroll:SetScrollChild(outerContent)
+
+    outerScroll:SetScript("OnSizeChanged", function(frame)
+        local width = frame:GetWidth()
+        if width > 0 then
+            outerContent:SetWidth(width)
+        end
+    end)
+
     local yOffset = -16
 
     -- Title
-    local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+    local title = outerContent:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 16, yOffset)
     title:SetText("Hooter v" .. self.VERSION)
     yOffset = yOffset - 30
 
-    local subtitle = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    local subtitle = outerContent:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     subtitle:SetPoint("TOPLEFT", 16, yOffset)
     subtitle:SetText("Chat trigger auto-response addon with shareable configurations")
     yOffset = yOffset - 30
@@ -66,7 +85,7 @@ function Hooter:BuildOptionsPanel(panel)
     ---------------------------------------------------------------------------
     -- Enable/Disable Checkbox
     ---------------------------------------------------------------------------
-    local enableCB = CreateFrame("CheckButton", "HooterEnableCheck", panel, "UICheckButtonTemplate")
+    local enableCB = CreateFrame("CheckButton", "HooterEnableCheck", outerContent, "UICheckButtonTemplate")
     enableCB:SetPoint("TOPLEFT", 16, yOffset)
     enableCB.text = enableCB.text or enableCB:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     enableCB.text:SetPoint("LEFT", enableCB, "RIGHT", 4, 0)
@@ -81,7 +100,7 @@ function Hooter:BuildOptionsPanel(panel)
     -- Settings Sliders
     ---------------------------------------------------------------------------
     yOffset = yOffset - 10
-    local settingsHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    local settingsHeader = outerContent:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     settingsHeader:SetPoint("TOPLEFT", 16, yOffset)
     settingsHeader:SetText("Settings")
     yOffset = yOffset - 25
@@ -90,12 +109,12 @@ function Hooter:BuildOptionsPanel(panel)
     local minDelaySlider, maxDelaySlider
 
     -- Cooldown Slider
-    _, _, yOffset = self:CreateSlider(panel, "Cooldown (seconds)", 1, 30, 1, self.db.settings.cooldown, yOffset, function(value)
+    _, _, yOffset = self:CreateSlider(outerContent, "Cooldown (seconds)", 1, 30, 1, self.db.settings.cooldown, yOffset, function(value)
         Hooter.db.settings.cooldown = value
     end)
 
     -- Min Delay Slider
-    minDelaySlider, _, yOffset = self:CreateSlider(panel, "Min Delay (seconds)", 0.0, 5.0, 0.1, self.db.settings.minDelay, yOffset, function(value)
+    minDelaySlider, _, yOffset = self:CreateSlider(outerContent, "Min Delay (seconds)", 0.0, 5.0, 0.1, self.db.settings.minDelay, yOffset, function(value)
         Hooter.db.settings.minDelay = value
         -- Clamp max delay if min exceeds it
         if value > Hooter.db.settings.maxDelay then
@@ -105,7 +124,7 @@ function Hooter:BuildOptionsPanel(panel)
     end)
 
     -- Max Delay Slider
-    maxDelaySlider, _, yOffset = self:CreateSlider(panel, "Max Delay (seconds)", 0.0, 10.0, 0.1, self.db.settings.maxDelay, yOffset, function(value)
+    maxDelaySlider, _, yOffset = self:CreateSlider(outerContent, "Max Delay (seconds)", 0.0, 10.0, 0.1, self.db.settings.maxDelay, yOffset, function(value)
         Hooter.db.settings.maxDelay = value
         -- Clamp min delay if max is below it
         if value < Hooter.db.settings.minDelay then
@@ -118,13 +137,13 @@ function Hooter:BuildOptionsPanel(panel)
     -- Trigger Management
     ---------------------------------------------------------------------------
     yOffset = yOffset - 20
-    local trigHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    local trigHeader = outerContent:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     trigHeader:SetPoint("TOPLEFT", 16, yOffset)
     trigHeader:SetText("Triggers")
     yOffset = yOffset - 25
 
     -- Button row: Add Trigger, Import, Export
-    local addBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    local addBtn = CreateFrame("Button", nil, outerContent, "UIPanelButtonTemplate")
     addBtn:SetSize(100, 22)
     addBtn:SetPoint("TOPLEFT", 16, yOffset)
     addBtn:SetText("Add Trigger")
@@ -132,7 +151,7 @@ function Hooter:BuildOptionsPanel(panel)
         StaticPopup_Show("HOOTER_ADD_TRIGGER")
     end)
 
-    local importBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    local importBtn = CreateFrame("Button", nil, outerContent, "UIPanelButtonTemplate")
     importBtn:SetSize(80, 22)
     importBtn:SetPoint("LEFT", addBtn, "RIGHT", 8, 0)
     importBtn:SetText("Import")
@@ -140,7 +159,7 @@ function Hooter:BuildOptionsPanel(panel)
         Hooter:Cmd_import("")
     end)
 
-    local exportBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    local exportBtn = CreateFrame("Button", nil, outerContent, "UIPanelButtonTemplate")
     exportBtn:SetSize(80, 22)
     exportBtn:SetPoint("LEFT", importBtn, "RIGHT", 8, 0)
     exportBtn:SetText("Export")
@@ -157,7 +176,7 @@ function Hooter:BuildOptionsPanel(panel)
     ---------------------------------------------------------------------------
     -- Trigger Scroll List
     ---------------------------------------------------------------------------
-    local triggerScroll = CreateFrame("ScrollFrame", "HooterTriggerScroll", panel, "UIPanelScrollFrameTemplate")
+    local triggerScroll = CreateFrame("ScrollFrame", "HooterTriggerScroll", outerContent, "UIPanelScrollFrameTemplate")
     triggerScroll:SetPoint("TOPLEFT", 16, yOffset)
     triggerScroll:SetPoint("TOPRIGHT", -48, yOffset)
     triggerScroll:SetHeight(200)
@@ -179,13 +198,13 @@ function Hooter:BuildOptionsPanel(panel)
     ---------------------------------------------------------------------------
     -- Response Editor (shown when trigger selected)
     ---------------------------------------------------------------------------
-    local respHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    local respHeader = outerContent:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     respHeader:SetPoint("TOPLEFT", 16, yOffset)
     respHeader:SetText("Responses")
     self.respHeaderLabel = respHeader
     yOffset = yOffset - 25
 
-    local respScroll = CreateFrame("ScrollFrame", "HooterResponseScroll", panel, "UIPanelScrollFrameTemplate")
+    local respScroll = CreateFrame("ScrollFrame", "HooterResponseScroll", outerContent, "UIPanelScrollFrameTemplate")
     respScroll:SetPoint("TOPLEFT", 16, yOffset)
     respScroll:SetPoint("TOPRIGHT", -48, yOffset)
     respScroll:SetHeight(120)
@@ -205,12 +224,12 @@ function Hooter:BuildOptionsPanel(panel)
     yOffset = yOffset - 130
 
     -- Add Response editbox + button
-    local addRespBox = CreateFrame("EditBox", "HooterAddRespBox", panel, "InputBoxTemplate")
+    local addRespBox = CreateFrame("EditBox", "HooterAddRespBox", outerContent, "InputBoxTemplate")
     addRespBox:SetSize(300, 20)
     addRespBox:SetPoint("TOPLEFT", 20, yOffset)
     addRespBox:SetAutoFocus(false)
 
-    local addRespBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    local addRespBtn = CreateFrame("Button", nil, outerContent, "UIPanelButtonTemplate")
     addRespBtn:SetSize(100, 22)
     addRespBtn:SetPoint("LEFT", addRespBox, "RIGHT", 8, 0)
     addRespBtn:SetText("Add Response")
@@ -233,6 +252,9 @@ function Hooter:BuildOptionsPanel(panel)
 
     self.triggerListContent = triggerListContent
     self.responseListContent = responseListContent
+
+    -- Set outer scroll child height so the scrollbar knows the content size
+    outerContent:SetHeight(math.abs(yOffset) + 16)
 
     -- Static Popups
     self:RegisterPopups()
@@ -284,7 +306,7 @@ function Hooter:RefreshTriggerList()
     local contentWidth = content:GetWidth()
     if contentWidth < 1 then return end
 
-    ReleaseFrames(triggerFramePool, content)
+    ReleaseFrames(triggerFramePool, activeTriggerFrames)
 
     local yOff = 0
     local triggers = self:GetAllTriggers()
@@ -298,6 +320,7 @@ function Hooter:RefreshTriggerList()
     for _, word in ipairs(sortedKeys) do
         local data = triggers[word]
         local row = AcquireFrame(triggerFramePool, content)
+        table.insert(activeTriggerFrames, row)
         row:SetSize(contentWidth, 24)
         row:SetPoint("TOPLEFT", 0, yOff)
 
@@ -359,7 +382,7 @@ function Hooter:RefreshResponseList()
     local contentWidth = content:GetWidth()
     if contentWidth < 1 then return end
 
-    ReleaseFrames(responseFramePool, content)
+    ReleaseFrames(responseFramePool, activeResponseFrames)
 
     if not selectedTrigger then
         self.respHeaderLabel:SetText("Responses (select a trigger)")
@@ -376,6 +399,7 @@ function Hooter:RefreshResponseList()
     local yOff = 0
     for i, resp in ipairs(trigger.responses) do
         local row = AcquireFrame(responseFramePool, content)
+        table.insert(activeResponseFrames, row)
         row:SetSize(contentWidth, 22)
         row:SetPoint("TOPLEFT", 0, yOff)
 

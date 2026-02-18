@@ -290,6 +290,8 @@ function Hooter:CreateImportDialog()
             local ok, result = Hooter:ImportConfig(text)
             if ok then
                 Hooter:Print("Imported trigger |cff00ccff!" .. result .. "|r successfully.")
+                Hooter:RefreshTriggerList()
+                Hooter:RefreshResponseList()
                 f:Hide()
             else
                 Hooter:PrintError("Import failed: " .. result)
