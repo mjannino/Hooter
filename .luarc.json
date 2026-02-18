@@ -1,0 +1,15 @@
+{
+    "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+    "runtime": {
+        "version": "Lua 5.1"
+    },
+    "diagnostics": {
+        "globals": [
+            "Hooter", "HooterDB", "HooterCharDB",
+            "SLASH_HOOTER1", "SLASH_HOOTER2", "SlashCmdList"
+        ]
+    },
+    "workspace": {
+        "ignoreDir": ["Libs", ".github"]
+    }
+}

@@ -1,0 +1,19 @@
+package-as: Hooter
+
+externals:
+    Libs/LibStub: https://repos.wowace.com/wow/libstub/trunk
+    Libs/LibDeflate:
+        url: https://github.com/SafeteeWoW/LibDeflate
+        tag: latest
+    Libs/LibSerialize:
+        url: https://github.com/rossnichols/LibSerialize
+        tag: latest
+
+ignore:
+    - .luacheckrc
+    - .luarc.json
+    - .editorconfig
+    - .github
+    - .gitignore
+    - .claude
+    - .worktrees

@@ -1,0 +1,23 @@
+## Interface: 120001
+## Title: Hooter
+## Notes: Chat trigger auto-response addon with shareable configurations
+## Author: Mike Jannino
+## Version: 1.0.0
+## SavedVariables: HooterDB
+## SavedVariablesPerCharacter: HooterCharDB
+
+# Libraries
+Libs/LibStub/LibStub.lua
+Libs/LibDeflate/lib.xml
+Libs/LibSerialize/lib.xml
+
+# Core
+Core/Init.lua
+Core/Config.lua
+Core/Scanner.lua
+Core/Response.lua
+Core/Sharing.lua
+Core/Commands.lua
+
+# UI
+UI/Options.lua

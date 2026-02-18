@@ -1,0 +1,24 @@
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# LuaLS cache
+log/
+
+# packager output
+.release/
+
+# Slop
+CLAUDE.md
+.claude/
+*.claude
+
+# Worktrees
+.worktrees
