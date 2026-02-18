@@ -12,7 +12,7 @@ Thumbs.db
 # LuaLS cache
 log/
 
-# packager output
+# BWM packager output
 .release/
 
 # Slop
