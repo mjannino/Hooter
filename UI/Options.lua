@@ -32,9 +32,9 @@ function Hooter:InitOptions()
     panel.name = "Hooter"
     panel:Hide()
 
-    panel:SetScript("OnShow", function(self)
-        Hooter:BuildOptionsPanel(self)
-        self:SetScript("OnShow", nil) -- Only build once
+    panel:SetScript("OnShow", function()
+        Hooter:BuildOptionsPanel(panel)
+        panel:SetScript("OnShow", nil) -- Only build once
     end)
 
     local category = Settings.RegisterCanvasLayoutCategory(panel, panel.name)
@@ -86,15 +86,16 @@ function Hooter:BuildOptionsPanel(panel)
     settingsHeader:SetText("Settings")
     yOffset = yOffset - 25
 
+    -- Forward-declare so cross-referencing callbacks can capture the locals
+    local minDelaySlider, maxDelaySlider
+
     -- Cooldown Slider
-    local _cooldownSlider, _cooldownVal
-    _cooldownSlider, _cooldownVal, yOffset = self:CreateSlider(panel, "Cooldown (seconds)", 1, 30, 1, self.db.settings.cooldown, yOffset, function(value)
+    _, _, yOffset = self:CreateSlider(panel, "Cooldown (seconds)", 1, 30, 1, self.db.settings.cooldown, yOffset, function(value)
         Hooter.db.settings.cooldown = value
     end)
 
     -- Min Delay Slider
-    local minDelaySlider, _minDelayVal
-    minDelaySlider, _minDelayVal, yOffset = self:CreateSlider(panel, "Min Delay (seconds)", 0.0, 5.0, 0.1, self.db.settings.minDelay, yOffset, function(value)
+    minDelaySlider, _, yOffset = self:CreateSlider(panel, "Min Delay (seconds)", 0.0, 5.0, 0.1, self.db.settings.minDelay, yOffset, function(value)
         Hooter.db.settings.minDelay = value
         -- Clamp max delay if min exceeds it
         if value > Hooter.db.settings.maxDelay then
@@ -104,8 +105,7 @@ function Hooter:BuildOptionsPanel(panel)
     end)
 
     -- Max Delay Slider
-    local maxDelaySlider, _maxDelayVal
-    maxDelaySlider, _maxDelayVal, yOffset = self:CreateSlider(panel, "Max Delay (seconds)", 0.0, 10.0, 0.1, self.db.settings.maxDelay, yOffset, function(value)
+    maxDelaySlider, _, yOffset = self:CreateSlider(panel, "Max Delay (seconds)", 0.0, 10.0, 0.1, self.db.settings.maxDelay, yOffset, function(value)
         Hooter.db.settings.maxDelay = value
         -- Clamp min delay if max is below it
         if value < Hooter.db.settings.minDelay then

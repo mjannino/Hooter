@@ -11,7 +11,7 @@ read_globals = {
     "CreateFrame", "C_ChatInfo", "C_Timer", "GetTime",
     "UnitName", "Ambiguate", "CopyTable",
     "StaticPopup_Show", "Settings",
-    "UIParent", "StaticPopupDialogs", "LibStub",
+    "UIParent", "LibStub",
     "GameFontNormal", "GameFontNormalLarge",
     "GameFontHighlight", "GameFontHighlightSmall", "ChatFontNormal",
 }
@@ -19,4 +19,5 @@ read_globals = {
 globals = {
     "Hooter", "HooterDB", "HooterCharDB",
     "SlashCmdList", "SLASH_HOOTER1", "SLASH_HOOTER2",
+    "StaticPopupDialogs",
 }
