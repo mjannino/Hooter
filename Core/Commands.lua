@@ -68,6 +68,10 @@ function Hooter:PrintHelp()
     print("  /hooter delay <min> <max> - Set response delay range")
 end
 
+function Hooter:OpenOptions()
+    Settings.OpenToCategory(self.settingsCategory:GetID())
+end
+
 function Hooter:Cmd_enable()
     self:SetEnabled(true)
     self:Print("Scanning |cff00ff00enabled|r for this character.")
