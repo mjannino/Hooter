@@ -22,7 +22,7 @@ end
 function Hooter:HandleCommand(input)
     local cmd, rest = input:match("^(%S+)%s*(.*)$")
     if not cmd then
-        self:PrintHelp()
+        self:OpenOptions()
         return
     end
     cmd = cmd:lower()
@@ -45,6 +45,8 @@ function Hooter:HandleCommand(input)
         self:Cmd_cooldown(rest)
     elseif cmd == "delay" then
         self:Cmd_delay(rest)
+    elseif cmd == "help" then
+        self:PrintHelp()
     else
         self:PrintError("Unknown command: " .. cmd)
         self:PrintHelp()
