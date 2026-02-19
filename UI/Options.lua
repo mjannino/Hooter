@@ -485,7 +485,7 @@ function Hooter:RegisterPopups()
         hasEditBox = true,
         editBoxWidth = 200,
         OnAccept = function(dialog)
-            local word = dialog.editBox:GetText()
+            local word = dialog.EditBox:GetText()
             if word and word ~= "" then
                 word = word:lower():gsub("[^%w]", "")
                 if word ~= "" then
