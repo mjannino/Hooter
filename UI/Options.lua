@@ -19,10 +19,6 @@ function Hooter:InitOptions()
     self.settingsCategory = category
 end
 
-function Hooter:OpenOptions()
-    Settings.OpenToCategory(self.settingsCategory:GetID())
-end
-
 ---------------------------------------------------------------------------
 -- Panel Builder
 ---------------------------------------------------------------------------
