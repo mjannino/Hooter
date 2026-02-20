@@ -19,9 +19,9 @@ function Hooter:InitOptions()
     self.settingsCategory = category
 end
 
----------------------------------------------------------------------------
+
 -- Panel Builder
----------------------------------------------------------------------------
+
 function Hooter:BuildOptionsPanel(panel)
     local yOffset = -16
 
@@ -36,9 +36,9 @@ function Hooter:BuildOptionsPanel(panel)
     subtitle:SetText("Chat trigger auto-response addon with shareable configurations")
     yOffset = yOffset - 30
 
-    ---------------------------------------------------------------------------
+
     -- Enable/Disable Checkbox
-    ---------------------------------------------------------------------------
+
     local enableCB = CreateFrame("CheckButton", "HooterEnableCheck", panel, "UICheckButtonTemplate")
     enableCB:SetPoint("TOPLEFT", 16, yOffset)
     enableCB.text = enableCB.text or enableCB:CreateFontString(nil, "ARTWORK", "GameFontNormal")
@@ -50,9 +50,9 @@ function Hooter:BuildOptionsPanel(panel)
     end)
     yOffset = yOffset - 30
 
-    ---------------------------------------------------------------------------
+
     -- Settings Sliders
-    ---------------------------------------------------------------------------
+
     yOffset = yOffset - 10
     local settingsHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     settingsHeader:SetPoint("TOPLEFT", 16, yOffset)
@@ -87,9 +87,9 @@ function Hooter:BuildOptionsPanel(panel)
         end
     end)
 
-    ---------------------------------------------------------------------------
+
     -- Trigger Management
-    ---------------------------------------------------------------------------
+
     yOffset = yOffset - 20
     local trigHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     trigHeader:SetPoint("TOPLEFT", 16, yOffset)
@@ -136,9 +136,9 @@ function Hooter:BuildOptionsPanel(panel)
 
     yOffset = yOffset - 30
 
-    ---------------------------------------------------------------------------
+
     -- Trigger Edit Row (hidden when no trigger selected)
-    ---------------------------------------------------------------------------
+
     local triggerEditRow = CreateFrame("Frame", nil, panel)
     triggerEditRow:SetSize(500, 26)
     triggerEditRow:SetPoint("TOPLEFT", 16, yOffset)
@@ -203,9 +203,9 @@ function Hooter:BuildOptionsPanel(panel)
 
     yOffset = yOffset - 30
 
-    ---------------------------------------------------------------------------
+
     -- Force Unique Row (hidden when no trigger selected)
-    ---------------------------------------------------------------------------
+
     local uniqueRow = CreateFrame("Frame", nil, panel)
     uniqueRow:SetSize(500, 26)
     uniqueRow:SetPoint("TOPLEFT", 16, yOffset)
@@ -253,9 +253,9 @@ function Hooter:BuildOptionsPanel(panel)
 
     yOffset = yOffset - 30
 
-    ---------------------------------------------------------------------------
+
     -- Response Section
-    ---------------------------------------------------------------------------
+
     local respHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     respHeader:SetPoint("TOPLEFT", 16, yOffset)
     respHeader:SetText("Responses (select a trigger)")
@@ -274,9 +274,9 @@ function Hooter:BuildOptionsPanel(panel)
 
     yOffset = yOffset - 30
 
-    ---------------------------------------------------------------------------
+
     -- Response Edit Row (hidden when no response selected)
-    ---------------------------------------------------------------------------
+
     local respEditRow = CreateFrame("Frame", nil, panel)
     respEditRow:SetSize(500, 26)
     respEditRow:SetPoint("TOPLEFT", 16, yOffset)
@@ -327,9 +327,9 @@ function Hooter:BuildOptionsPanel(panel)
 
     yOffset = yOffset - 30
 
-    ---------------------------------------------------------------------------
+
     -- Add Response Row
-    ---------------------------------------------------------------------------
+
     local addRespBox = CreateFrame("EditBox", "HooterAddRespBox", panel, "InputBoxTemplate")
     addRespBox:SetSize(300, 20)
     addRespBox:SetPoint("TOPLEFT", 20, yOffset)
@@ -360,9 +360,9 @@ function Hooter:BuildOptionsPanel(panel)
     self:RegisterPopups()
 end
 
----------------------------------------------------------------------------
+
 -- Slider Factory
----------------------------------------------------------------------------
+
 function Hooter:CreateSlider(parent, label, minVal, maxVal, step, currentVal, yOffset, onChange)
     local container = CreateFrame("Frame", nil, parent)
     container:SetSize(300, 40)
@@ -396,9 +396,9 @@ function Hooter:CreateSlider(parent, label, minVal, maxVal, step, currentVal, yO
     return slider, valText, yOffset - 50
 end
 
----------------------------------------------------------------------------
+
 -- Trigger Dropdown Initializer
----------------------------------------------------------------------------
+
 function Hooter:InitTriggerDropdown(dropdown, level)
     local triggers = self:GetAllTriggers()
     local sortedKeys = {}
@@ -424,9 +424,9 @@ function Hooter:InitTriggerDropdown(dropdown, level)
     end
 end
 
----------------------------------------------------------------------------
+
 -- Response Dropdown Initializer
----------------------------------------------------------------------------
+
 function Hooter:InitResponseDropdown(dropdown, level)
     if not selectedTrigger then return end
     local trigger = self:GetTrigger(selectedTrigger)
@@ -449,9 +449,9 @@ function Hooter:InitResponseDropdown(dropdown, level)
     end
 end
 
----------------------------------------------------------------------------
+
 -- Refresh Functions (names kept for Commands.lua compatibility)
----------------------------------------------------------------------------
+
 function Hooter:RefreshTriggerList()
     if not self.triggerDropdown then return end
     UIDropDownMenu_Initialize(self.triggerDropdown, function(dd, level)
@@ -491,9 +491,9 @@ function Hooter:RefreshResponseList()
     self:UpdateResponseEditArea()
 end
 
----------------------------------------------------------------------------
+
 -- Edit Area Visibility
----------------------------------------------------------------------------
+
 function Hooter:UpdateTriggerEditArea()
     if not self.triggerEditRow then return end
     if selectedTrigger and self:GetTrigger(selectedTrigger) then
@@ -540,9 +540,9 @@ function Hooter:UpdateResponseEditArea()
     self.respEditRow:Hide()
 end
 
----------------------------------------------------------------------------
+
 -- Static Popups
----------------------------------------------------------------------------
+
 function Hooter:RegisterPopups()
     StaticPopupDialogs["HOOTER_ADD_TRIGGER"] = {
         text = "Enter trigger word (without !):",
