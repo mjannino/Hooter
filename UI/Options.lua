@@ -236,7 +236,7 @@ function Hooter:BuildOptionsPanel(panel)
         local trigger = Hooter:GetTrigger(selectedTrigger)
         if not trigger then return end
 
-        local options = { { value = "silent", text = "Silent" }, { value = "wrap", text = "Wrap" } }
+        local options = { { value = "silent", text = "Extra players stay silent" }, { value = "wrap", text = "Extra players round-robined in" } }
         for _, opt in ipairs(options) do
             local info = UIDropDownMenu_CreateInfo()
             info.text = opt.text
