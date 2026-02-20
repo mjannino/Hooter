@@ -41,6 +41,8 @@ function Hooter:HandleCommand(input)
         self:Cmd_export(rest)
     elseif cmd == "import" then
         self:Cmd_import(rest)
+    elseif cmd == "share" then
+        self:Cmd_share(rest)
     elseif cmd == "cooldown" then
         self:Cmd_cooldown(rest)
     elseif cmd == "delay" then
@@ -66,6 +68,7 @@ function Hooter:PrintHelp()
     print("  /hooter list            - List all triggers")
     print("  /hooter export !word    - Export a trigger's config string")
     print("  /hooter import <str>    - Import a trigger from a config string")
+    print("  /hooter share !word [channel] - Share trigger as clickable chat link")
     print("  /hooter cooldown <sec>  - Set trigger cooldown")
     print("  /hooter delay <min> <max> - Set response delay range")
     print("  /hooter unique !word [silent|wrap] - Toggle force unique responses")
@@ -184,6 +187,25 @@ function Hooter:Cmd_import(rest)
     else
         self:PrintError("Import failed: " .. result)
     end
+end
+
+function Hooter:Cmd_share(rest)
+    local word, channel = rest:match("^!(%w+)%s*(%S*)$")
+    if not word then
+        self:PrintError("Usage: /hooter share !word [channel]")
+        return
+    end
+    word = word:lower()
+    if not self:GetTrigger(word) then
+        self:PrintError("Trigger !" .. word .. " not found.")
+        return
+    end
+    local chatType, err = self:ResolveShareChannel(channel)
+    if not chatType then
+        self:PrintError(err)
+        return
+    end
+    self:SendShareData(word, chatType)
 end
 
 function Hooter:Cmd_cooldown(rest)

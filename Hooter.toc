@@ -18,6 +18,7 @@ Core/Scanner.lua
 Core/Response.lua
 Core/Coordination.lua
 Core/Sharing.lua
+Core/ChatLinks.lua
 Core/Commands.lua
 
 # UI

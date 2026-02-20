@@ -19,6 +19,11 @@ function Hooter:CHAT_MSG_ADDON(prefix, message, distribution, sender)
     local msgType, eventID = message:match("^(%u+):(.+)$")
     if msgType == "JOIN" then
         self:OnJoinReceived(eventID, sender)
+    elseif msgType == "SH" then
+        local word, chunkNum, totalChunks, data = eventID:match("^(%w+):(%d+):(%d+):(.+)$")
+        if word and chunkNum and totalChunks and data then
+            self:OnShareChunkReceived(sender, word, tonumber(chunkNum), tonumber(totalChunks), data)
+        end
     end
 end
 

@@ -34,6 +34,9 @@ function Hooter:OnChatMessage(event, message, sender, ...)
     -- Early-out: no ! means no trigger
     if not message:find("!", 1, true) then return end
 
+    -- Skip share marker messages (metadata, not trigger invocations)
+    if message:find("%[Hooter: !%w+") then return end
+
     -- Skip own messages (Ambiguate handles realm-qualified names and connected realms)
     if Ambiguate(sender, "short") == UnitName("player") then
         return

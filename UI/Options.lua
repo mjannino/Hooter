@@ -134,6 +134,23 @@ function Hooter:BuildOptionsPanel(panel)
         Hooter:Cmd_export("!" .. selectedTrigger)
     end)
 
+    local shareBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    shareBtn:SetSize(80, 22)
+    shareBtn:SetPoint("LEFT", exportBtn, "RIGHT", 4, 0)
+    shareBtn:SetText("Share")
+    shareBtn:SetScript("OnClick", function()
+        if not selectedTrigger then
+            Hooter:PrintError("Select a trigger to share.")
+            return
+        end
+        local chatType, err = Hooter:ResolveShareChannel(nil)
+        if not chatType then
+            Hooter:PrintError(err)
+            return
+        end
+        Hooter:SendShareData(selectedTrigger, chatType)
+    end)
+
     yOffset = yOffset - 30
 
 
