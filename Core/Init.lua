@@ -19,6 +19,7 @@ Hooter.frame:RegisterEvent("ADDON_LOADED")
 function Hooter:ADDON_LOADED(addonName)
     if addonName ~= ADDON_NAME then return end
     self:InitConfig()
+    self:InitCoordination()
     self:InitScanner()
     self:InitCommands()
     self:InitOptions()

@@ -62,6 +62,8 @@ function Hooter:AddTrigger(word, response)
         self.db.triggers[word] = {
             enabled = true,
             responses = {},
+            forceUnique = false,
+            uniqueOverflow = "silent",
         }
     end
     table.insert(self.db.triggers[word].responses, response)

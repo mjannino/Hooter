@@ -45,6 +45,8 @@ function Hooter:HandleCommand(input)
         self:Cmd_cooldown(rest)
     elseif cmd == "delay" then
         self:Cmd_delay(rest)
+    elseif cmd == "unique" then
+        self:Cmd_unique(rest)
     elseif cmd == "help" then
         self:PrintHelp()
     else
@@ -66,6 +68,7 @@ function Hooter:PrintHelp()
     print("  /hooter import <str>    - Import a trigger from a config string")
     print("  /hooter cooldown <sec>  - Set trigger cooldown")
     print("  /hooter delay <min> <max> - Set response delay range")
+    print("  /hooter unique !word [silent|wrap] - Toggle force unique responses")
 end
 
 function Hooter:OpenOptions()
@@ -203,6 +206,32 @@ function Hooter:Cmd_delay(rest)
     self.db.settings.minDelay = minVal
     self.db.settings.maxDelay = maxVal
     self:Print("Delay range set to " .. minVal .. "-" .. maxVal .. "s")
+end
+
+function Hooter:Cmd_unique(rest)
+    local word, overflow = rest:match("^!(%w+)%s*(%w*)$")
+    if not word then
+        self:PrintError("Usage: /hooter unique !word [silent|wrap]")
+        return
+    end
+    word = word:lower()
+    local trigger = self:GetTrigger(word)
+    if not trigger then
+        self:PrintError("Trigger !" .. word .. " not found.")
+        return
+    end
+
+    -- Toggle forceUnique
+    trigger.forceUnique = not trigger.forceUnique
+
+    -- Set overflow policy if provided
+    if overflow == "silent" or overflow == "wrap" then
+        trigger.uniqueOverflow = overflow
+    end
+
+    local status = trigger.forceUnique and "|cff00ff00ON|r" or "|cffff0000OFF|r"
+    local overflowStr = trigger.forceUnique and (" (overflow: " .. (trigger.uniqueOverflow or "silent") .. ")") or ""
+    self:Print("Force unique for |cff00ccff!" .. word .. "|r: " .. status .. overflowStr)
 end
 
 -- Export/Import dialog frames (reusable popups)

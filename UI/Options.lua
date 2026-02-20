@@ -204,6 +204,56 @@ function Hooter:BuildOptionsPanel(panel)
     yOffset = yOffset - 30
 
     ---------------------------------------------------------------------------
+    -- Force Unique Row (hidden when no trigger selected)
+    ---------------------------------------------------------------------------
+    local uniqueRow = CreateFrame("Frame", nil, panel)
+    uniqueRow:SetSize(500, 26)
+    uniqueRow:SetPoint("TOPLEFT", 16, yOffset)
+    uniqueRow:Hide()
+    self.uniqueRow = uniqueRow
+
+    local uniqueCB = CreateFrame("CheckButton", "HooterForceUniqueCB", uniqueRow, "UICheckButtonTemplate")
+    uniqueCB:SetPoint("LEFT", 4, 0)
+    uniqueCB.text = uniqueCB.text or uniqueCB:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    uniqueCB.text:SetPoint("LEFT", uniqueCB, "RIGHT", 2, 0)
+    uniqueCB.text:SetText("Force Unique Responses")
+    self.uniqueCB = uniqueCB
+    uniqueCB:SetScript("OnClick", function(cb)
+        if selectedTrigger then
+            local trigger = Hooter:GetTrigger(selectedTrigger)
+            if trigger then
+                trigger.forceUnique = cb:GetChecked()
+                Hooter:UpdateUniqueArea()
+            end
+        end
+    end)
+
+    local overflowDropdown = CreateFrame("Frame", "HooterOverflowDropdown", uniqueRow, "UIDropDownMenuTemplate")
+    UIDropDownMenu_SetWidth(overflowDropdown, 100)
+    overflowDropdown:SetPoint("LEFT", uniqueCB.text, "RIGHT", 10, 0)
+    UIDropDownMenu_Initialize(overflowDropdown, function(dd, level)
+        if not selectedTrigger then return end
+        local trigger = Hooter:GetTrigger(selectedTrigger)
+        if not trigger then return end
+
+        local options = { { value = "silent", text = "Silent" }, { value = "wrap", text = "Wrap" } }
+        for _, opt in ipairs(options) do
+            local info = UIDropDownMenu_CreateInfo()
+            info.text = opt.text
+            info.value = opt.value
+            info.checked = (trigger.uniqueOverflow or "silent") == opt.value
+            info.func = function(btn)
+                trigger.uniqueOverflow = btn.value
+                UIDropDownMenu_SetSelectedValue(dd, btn.value)
+            end
+            UIDropDownMenu_AddButton(info, level)
+        end
+    end)
+    self.overflowDropdown = overflowDropdown
+
+    yOffset = yOffset - 30
+
+    ---------------------------------------------------------------------------
     -- Response Section
     ---------------------------------------------------------------------------
     local respHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
@@ -451,9 +501,29 @@ function Hooter:UpdateTriggerEditArea()
         self.triggerEditBox:SetText(selectedTrigger)
         self.triggerEnableCB:SetChecked(self:GetTrigger(selectedTrigger).enabled)
         self.respHeaderLabel:SetText("Responses for |cff00ccff!" .. selectedTrigger .. "|r")
+        self:UpdateUniqueArea()
     else
         self.triggerEditRow:Hide()
+        if self.uniqueRow then self.uniqueRow:Hide() end
         self.respHeaderLabel:SetText("Responses (select a trigger)")
+    end
+end
+
+function Hooter:UpdateUniqueArea()
+    if not self.uniqueRow then return end
+    local trigger = selectedTrigger and self:GetTrigger(selectedTrigger)
+    if not trigger then
+        self.uniqueRow:Hide()
+        return
+    end
+    self.uniqueRow:Show()
+    self.uniqueCB:SetChecked(trigger.forceUnique or false)
+    if trigger.forceUnique then
+        UIDropDownMenu_SetSelectedValue(self.overflowDropdown, trigger.uniqueOverflow or "silent")
+        UIDropDownMenu_SetText(self.overflowDropdown, (trigger.uniqueOverflow or "silent") == "wrap" and "Wrap" or "Silent")
+        self.overflowDropdown:Show()
+    else
+        self.overflowDropdown:Hide()
     end
 end
 

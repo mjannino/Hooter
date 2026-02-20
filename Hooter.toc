@@ -16,6 +16,7 @@ Core/Init.lua
 Core/Config.lua
 Core/Scanner.lua
 Core/Response.lua
+Core/Coordination.lua
 Core/Sharing.lua
 Core/Commands.lua
 
