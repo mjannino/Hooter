@@ -18,7 +18,8 @@ Hooter listens to party, raid, guild, whisper, and instance chat for messages co
 
 | Command | Description |
 |---------|-------------|
-| `/hooter` | Show help and current status |
+| `/hooter` | Open options page |
+| `/hooter help` | Show help and current status |
 | `/hooter enable` | Enable scanning on this character |
 | `/hooter disable` | Disable scanning on this character |
 | `/hooter add !word response text` | Add a response to a trigger |
@@ -29,6 +30,7 @@ Hooter listens to party, raid, guild, whisper, and instance chat for messages co
 | `/hooter import <string>` | Import a trigger from a shared string |
 | `/hooter cooldown <seconds>` | Set trigger cooldown (default: 5s) |
 | `/hooter delay <min> <max>` | Set response delay range (default: 0.5-3.0s) |
+| `/hooter unique !word [silent/wrap]` | Toggle forcing unique responses |
 
 An options panel is also available under **ESC > Options > AddOns > Hooter**.
 
