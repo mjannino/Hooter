@@ -31,8 +31,6 @@ end
 
 -- Shared message handler (CraftScan pipeline with early-out pattern)
 function Hooter:OnChatMessage(event, message, sender, ...)
-    local lineID = select(9, ...)
-
     -- Early-out: no ! means no trigger
     if not message:find("!", 1, true) then return end
 
@@ -49,7 +47,7 @@ function Hooter:OnChatMessage(event, message, sender, ...)
     for word in lowerMsg:gmatch("!(%w+)") do
         local triggerData = self.db.triggers[word]
         if triggerData and triggerData.enabled and #triggerData.responses > 0 then
-            self:QueueResponse(word, triggerData, event, sender, lineID)
+            self:QueueResponse(word, triggerData, event, sender)
             return  -- One response per message
         end
     end

@@ -14,7 +14,7 @@ local EVENT_TO_CHAT = {
 -- Cooldown tracking: trigger_word → GetTime() of last response
 Hooter.cooldowns = {}
 
-function Hooter:QueueResponse(triggerWord, triggerData, event, sender, lineID)
+function Hooter:QueueResponse(triggerWord, triggerData, event, sender)
     -- Check cooldown
     local now = GetTime()
     local lastFired = self.cooldowns[triggerWord]
@@ -25,7 +25,7 @@ function Hooter:QueueResponse(triggerWord, triggerData, event, sender, lineID)
 
     -- If forceUnique is enabled and channel supports coordination, use coordination path
     if triggerData.forceUnique and self:CanCoordinate(event) then
-        self:StartCoordination(triggerWord, triggerData, event, sender, sender, lineID)
+        self:StartCoordination(triggerWord, triggerData, event, sender, sender)
         return
     end
 
