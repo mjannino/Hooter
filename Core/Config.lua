@@ -5,6 +5,9 @@ local ACCOUNT_DEFAULTS = {
         minDelay = 0.5,
         maxDelay = 3.0,
         cooldown = 5,
+        burstThreshold = 3,
+        burstWindow = 15,
+        burstCooldown = 30,
     },
     triggers = {},
 }

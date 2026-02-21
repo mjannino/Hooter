@@ -87,6 +87,25 @@ function Hooter:BuildOptionsPanel(panel)
         end
     end)
 
+    -- Burst Detection Sliders
+    yOffset = yOffset - 10
+    local burstHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    burstHeader:SetPoint("TOPLEFT", 16, yOffset)
+    burstHeader:SetText("Burst Detection")
+    yOffset = yOffset - 25
+
+    _, _, yOffset = self:CreateSlider(panel, "Burst Threshold (responses)", 2, 10, 1, self.db.settings.burstThreshold, yOffset, function(value)
+        Hooter.db.settings.burstThreshold = value
+    end)
+
+    _, _, yOffset = self:CreateSlider(panel, "Burst Window (seconds)", 5, 60, 1, self.db.settings.burstWindow, yOffset, function(value)
+        Hooter.db.settings.burstWindow = value
+    end)
+
+    _, _, yOffset = self:CreateSlider(panel, "Burst Cooldown (seconds)", 10, 120, 1, self.db.settings.burstCooldown, yOffset, function(value)
+        Hooter.db.settings.burstCooldown = value
+    end)
+
 
     -- Trigger Management
 

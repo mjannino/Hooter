@@ -47,17 +47,21 @@ function Hooter:CanCoordinate(event)
 end
 
 -- Build a deterministic event ID from the trigger context
+-- Uses only data from the chat message itself (sender + trigger word) so all
+-- clients receiving the same message produce the same key.  No timestamps —
+-- the cooldown in QueueResponse already prevents rapid re-triggers.
 local function MakeEventID(sender, triggerWord)
-    return sender .. ":" .. triggerWord .. ":" .. GetServerTime()
+    return sender .. ":" .. triggerWord
 end
 
 -- Start the coordination protocol for a forceUnique trigger
 function Hooter:StartCoordination(triggerWord, triggerData, event, sender, chatSender)
     local eventID = MakeEventID(chatSender, triggerWord)
 
-    -- If we already have a session for this event, just make sure we're in it
+    -- If the previous session for this key already resolved, discard it so a
+    -- new round can begin (the cooldown in QueueResponse gates re-entry).
     if self.coordSessions[eventID] and self.coordSessions[eventID].resolved then
-        return
+        self.coordSessions[eventID] = nil
     end
 
     local addonChannel = GetAddonChannel(event)
@@ -92,9 +96,12 @@ function Hooter:StartCoordination(triggerWord, triggerData, event, sender, chatS
         end)
     end
 
-    -- Schedule cleanup
+    -- Schedule cleanup — only remove THIS session; a later round may have
+    -- replaced it with a new table under the same key.
     C_Timer.After(CLEANUP_DELAY, function()
-        self.coordSessions[eventID] = nil
+        if self.coordSessions[eventID] == session then
+            self.coordSessions[eventID] = nil
+        end
     end)
 end
 
@@ -169,7 +176,8 @@ function Hooter:ResolveCoordination(eventID)
     local max = self.db.settings.maxDelay
     local delay = min + (math.random() * (max - min))
 
+    local sanitized = self:SanitizeResponse(response)
     C_Timer.After(delay, function()
-        C_ChatInfo.SendChatMessage(response, chatType, nil, nil)
+        C_ChatInfo.SendChatMessage(sanitized, chatType, nil, nil)
     end)
 end
