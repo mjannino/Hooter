@@ -47,13 +47,13 @@ function Hooter:CanCoordinate(event)
 end
 
 -- Build a deterministic event ID from the trigger context
-local function MakeEventID(sender, triggerWord)
-    return sender .. ":" .. triggerWord .. ":" .. math.floor(GetTime())
+local function MakeEventID(sender, triggerWord, lineID)
+    return sender .. ":" .. triggerWord .. ":" .. tostring(lineID)
 end
 
 -- Start the coordination protocol for a forceUnique trigger
-function Hooter:StartCoordination(triggerWord, triggerData, event, sender, chatSender)
-    local eventID = MakeEventID(chatSender, triggerWord)
+function Hooter:StartCoordination(triggerWord, triggerData, event, sender, chatSender, lineID)
+    local eventID = MakeEventID(chatSender, triggerWord, lineID)
 
     -- If we already have a session for this event, just make sure we're in it
     if self.coordSessions[eventID] and self.coordSessions[eventID].resolved then
