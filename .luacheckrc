@@ -11,6 +11,8 @@ read_globals = {
     "CreateFrame", "C_ChatInfo", "C_Timer", "GetTime",
     "UnitName", "Ambiguate", "CopyTable",
     "StaticPopup_Show", "Settings",
+    "ChatFrame_AddMessageEventFilter", "hooksecurefunc",
+    "IsInRaid", "IsInGroup", "IsInGuild",
     "UIParent", "LibStub",
     "GameFontNormal", "GameFontNormalLarge",
     "GameFontHighlight", "GameFontHighlightSmall", "ChatFontNormal",
