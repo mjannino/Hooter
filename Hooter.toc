@@ -5,6 +5,8 @@
 ## Version: 1.0.0
 ## SavedVariables: HooterDB
 ## SavedVariablesPerCharacter: HooterCharDB
+## X-Curse-Project-ID: 1470419
+## X-Wago-ID: qGYZkvNg
 
 # Libraries
 Libs/LibStub/LibStub.lua
