@@ -1,16 +1,5 @@
 local _, Hooter = ...
 
--- Chat events to scan (CraftScan conditional registration pattern)
-local CHAT_EVENTS = {
-    "CHAT_MSG_PARTY",
-    "CHAT_MSG_PARTY_LEADER",
-    "CHAT_MSG_RAID",
-    "CHAT_MSG_RAID_LEADER",
-    "CHAT_MSG_GUILD",
-    "CHAT_MSG_WHISPER",
-    "CHAT_MSG_INSTANCE_CHAT",
-}
-
 function Hooter:InitScanner()
     if self:IsEnabled() then
         self:EnableScanning()
@@ -18,13 +7,13 @@ function Hooter:InitScanner()
 end
 
 function Hooter:EnableScanning()
-    for _, event in ipairs(CHAT_EVENTS) do
+    for _, event in ipairs(Hooter.CHAT_EVENTS) do
         self.frame:RegisterEvent(event)
     end
 end
 
 function Hooter:DisableScanning()
-    for _, event in ipairs(CHAT_EVENTS) do
+    for _, event in ipairs(Hooter.CHAT_EVENTS) do
         self.frame:UnregisterEvent(event)
     end
 end
@@ -53,31 +42,9 @@ function Hooter:OnChatMessage(event, message, sender, ...)
     end
 end
 
--- Thin wrappers for each chat event, routing to shared handler
-function Hooter:CHAT_MSG_PARTY(message, sender, ...)
-    self:OnChatMessage("CHAT_MSG_PARTY", message, sender, ...)
-end
-
-function Hooter:CHAT_MSG_PARTY_LEADER(message, sender, ...)
-    self:OnChatMessage("CHAT_MSG_PARTY_LEADER", message, sender, ...)
-end
-
-function Hooter:CHAT_MSG_RAID(message, sender, ...)
-    self:OnChatMessage("CHAT_MSG_RAID", message, sender, ...)
-end
-
-function Hooter:CHAT_MSG_RAID_LEADER(message, sender, ...)
-    self:OnChatMessage("CHAT_MSG_RAID_LEADER", message, sender, ...)
-end
-
-function Hooter:CHAT_MSG_GUILD(message, sender, ...)
-    self:OnChatMessage("CHAT_MSG_GUILD", message, sender, ...)
-end
-
-function Hooter:CHAT_MSG_WHISPER(message, sender, ...)
-    self:OnChatMessage("CHAT_MSG_WHISPER", message, sender, ...)
-end
-
-function Hooter:CHAT_MSG_INSTANCE_CHAT(message, sender, ...)
-    self:OnChatMessage("CHAT_MSG_INSTANCE_CHAT", message, sender, ...)
+-- Generate event handlers for each chat event, routing to shared handler
+for _, event in ipairs(Hooter.CHAT_EVENTS) do
+    Hooter[event] = function(self, message, sender, ...)
+        self:OnChatMessage(event, message, sender, ...)
+    end
 end

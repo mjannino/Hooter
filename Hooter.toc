@@ -15,6 +15,7 @@ Libs/LibSerialize/lib.xml
 
 # Core
 Core/Init.lua
+Core/Constants.lua
 Core/Config.lua
 Core/Scanner.lua
 Core/Response.lua
@@ -24,4 +25,5 @@ Core/ChatLinks.lua
 Core/Commands.lua
 
 # UI
+UI/Dialogs.lua
 UI/Options.lua

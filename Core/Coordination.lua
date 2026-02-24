@@ -1,8 +1,26 @@
 local _, Hooter = ...
 
+-- Coordination Protocol
+--
+-- Problem: When a "forceUnique" trigger fires in group chat, every Hooter client
+-- sees the same message. Without coordination, all of them would respond —
+-- duplicating lines or colliding on the same response index.
+--
+-- Solution — leader-less 2-phase protocol:
+--   1. BROADCAST: Each client sends a JOIN:<eventID> addon message on the same
+--      channel.  The eventID is deterministic (sender:triggerWord) so every
+--      client generates the same key for the same chat event.
+--   2. RESOLVE: After a short collection window (COORD.JOIN_WINDOW), each client
+--      independently sorts the collected participant names alphabetically and
+--      assigns response indices by position.  Because every client sees the same
+--      set of JOINs and uses the same sort, they all agree on the assignment
+--      without electing a leader.
+--
+-- Overflow policies (when more participants than responses):
+--   "silent" — extra participants stay quiet (default)
+--   "wrap"   — extra participants wrap around to earlier responses
+
 local ADDON_PREFIX = "Hooter"
-local JOIN_WINDOW = 0.4  -- seconds to collect JOIN messages
-local CLEANUP_DELAY = 10 -- seconds after which stale coordination state is purged
 
 -- Active coordination sessions: eventID → { participants = {}, timer = nil, resolved = false }
 Hooter.coordSessions = {}
@@ -27,18 +45,13 @@ function Hooter:CHAT_MSG_ADDON(prefix, message, distribution, sender)
     end
 end
 
--- Determine the channel to broadcast addon messages on based on the chat event
+-- Determine the channel to broadcast addon messages on based on the chat event.
+-- Derives from the shared EVENT_TO_CHAT mapping, excluding WHISPER (no addon
+-- channel for whispers).
 local function GetAddonChannel(event)
-    if event == "CHAT_MSG_PARTY" or event == "CHAT_MSG_PARTY_LEADER" then
-        return "PARTY"
-    elseif event == "CHAT_MSG_RAID" or event == "CHAT_MSG_RAID_LEADER" then
-        return "RAID"
-    elseif event == "CHAT_MSG_GUILD" then
-        return "GUILD"
-    elseif event == "CHAT_MSG_INSTANCE_CHAT" then
-        return "INSTANCE_CHAT"
-    end
-    return nil
+    local chatType = Hooter.EVENT_TO_CHAT[event]
+    if chatType == "WHISPER" then return nil end
+    return chatType
 end
 
 -- Check if the event type supports coordination (not WHISPER)
@@ -91,14 +104,14 @@ function Hooter:StartCoordination(triggerWord, triggerData, event, sender, chatS
     -- Start collection timer
     if not session.timer then
         session.timer = true
-        C_Timer.After(JOIN_WINDOW, function()
+        C_Timer.After(Hooter.COORD.JOIN_WINDOW, function()
             self:ResolveCoordination(eventID)
         end)
     end
 
     -- Schedule cleanup — only remove THIS session; a later round may have
     -- replaced it with a new table under the same key.
-    C_Timer.After(CLEANUP_DELAY, function()
+    C_Timer.After(Hooter.COORD.CLEANUP_DELAY, function()
         if self.coordSessions[eventID] == session then
             self.coordSessions[eventID] = nil
         end
@@ -160,24 +173,11 @@ function Hooter:ResolveCoordination(eventID)
     local response = responses[responseIndex]
 
     -- Apply normal random delay and send
-    local EVENT_TO_CHAT = {
-        CHAT_MSG_PARTY         = "PARTY",
-        CHAT_MSG_PARTY_LEADER  = "PARTY",
-        CHAT_MSG_RAID          = "RAID",
-        CHAT_MSG_RAID_LEADER   = "RAID",
-        CHAT_MSG_GUILD         = "GUILD",
-        CHAT_MSG_INSTANCE_CHAT = "INSTANCE_CHAT",
-    }
-
-    local chatType = EVENT_TO_CHAT[session.event]
+    local chatType = self.EVENT_TO_CHAT[session.event]
     if not chatType then return end
 
-    local min = self.db.settings.minDelay
-    local max = self.db.settings.maxDelay
-    local delay = min + (math.random() * (max - min))
-
     local sanitized = self:SanitizeResponse(response)
-    C_Timer.After(delay, function()
+    C_Timer.After(self:CalculateDelay(), function()
         C_ChatInfo.SendChatMessage(sanitized, chatType, nil, nil)
     end)
 end

@@ -1,10 +1,6 @@
 local _, Hooter = ...
 
 local ADDON_PREFIX = "Hooter"
-local SHARE_TTL = 300       -- 5 minutes
-local PENDING_TIMEOUT = 30  -- seconds before incomplete chunks are discarded
-local MAX_CACHE = 10
-local CHUNK_DATA_SIZE = 235 -- bytes of payload per addon message chunk
 
 -- Chat marker pattern: [Hooter: !word (N responses)]
 local MARKER_PATTERN = "%[Hooter: !(%w+) %((%d+) responses?%)%]"
@@ -13,20 +9,14 @@ local MARKER_PATTERN = "%[Hooter: !(%w+) %((%d+) responses?%)%]"
 local shareCache = {}     -- "sender:word" → { data = string, time = number }
 local pendingChunks = {}  -- "sender:word" → { chunks = {}, total = number, time = number }
 
--- Chat events that can display share links
-local CHAT_EVENTS = {
-    "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER",
-    "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER",
-    "CHAT_MSG_GUILD",
-    "CHAT_MSG_INSTANCE_CHAT",
-}
-
 function Hooter:InitChatLinks()
-    -- Register chat filter on all relevant event types
-    for _, event in ipairs(CHAT_EVENTS) do
-        ChatFrame_AddMessageEventFilter(event, function(frame, evt, msg, sender, ...)
-            return Hooter:FilterChatMessage(frame, evt, msg, sender, ...)
-        end)
+    -- Register chat filter on all relevant event types (WHISPER excluded — no share links in whispers)
+    for _, event in ipairs(Hooter.CHAT_EVENTS) do
+        if event ~= "CHAT_MSG_WHISPER" then
+            ChatFrame_AddMessageEventFilter(event, function(frame, evt, msg, sender, ...)
+                return Hooter:FilterChatMessage(frame, evt, msg, sender, ...)
+            end)
+        end
     end
 
     -- Hook hyperlink clicks
@@ -89,7 +79,7 @@ function Hooter:OnHyperlinkClick(link, text, button, chatFrame)
         return
     end
 
-    if GetTime() - cached.time > SHARE_TTL then
+    if GetTime() - cached.time > Hooter.SHARE.TTL then
         shareCache[cacheKey] = nil
         self:PrintError("Share data for !" .. word .. " from " .. sender .. " has expired.")
         return
@@ -123,13 +113,19 @@ function Hooter:SendShareData(word, chatType)
     self:Print("Shared |cff00ccff!" .. word .. "|r in " .. chatType .. " chat.")
 end
 
--- Chunk and send export data via addon messages
+-- Chunk and send export data via addon messages.
+-- WoW addon messages are limited to 255 bytes each.  The header
+-- ("SH:<word>:<chunkNum>:<totalChunks>:") consumes a variable number of bytes
+-- depending on the trigger word length and the digit count of totalChunks, so
+-- the available data space per chunk is computed dynamically.  On the receiving
+-- side, Coordination.lua routes SH messages to OnShareChunkReceived, which
+-- reassembles chunks in order once all have arrived.
 function Hooter:SendChunkedAddonMessage(payload, word, chatType)
     -- Compute available space per chunk dynamically based on header length
     -- Header format: "SH:word:N:M:" where N/M are chunk/total digits
     local totalLen = #payload
     -- Estimate total chunks with conservative header overhead to compute digit count
-    local estChunks = math.ceil(totalLen / CHUNK_DATA_SIZE)
+    local estChunks = math.ceil(totalLen / Hooter.SHARE.CHUNK_DATA_SIZE)
     local digitLen = #tostring(estChunks)
     -- Header: "SH:" + word + ":" + chunkNum + ":" + totalChunks + ":"
     local headerLen = 3 + #word + 1 + digitLen + 1 + digitLen + 1
@@ -149,7 +145,7 @@ end
 
 -- Receive a share chunk from addon messages (called from Coordination.lua)
 function Hooter:OnShareChunkReceived(sender, word, chunkNum, totalChunks, data)
-    if chunkNum < 1 or chunkNum > totalChunks or totalChunks > 50 then return end
+    if chunkNum < 1 or chunkNum > totalChunks or totalChunks > Hooter.SHARE.MAX_CHUNKS then return end
 
     local shortSender = Ambiguate(sender, "short")
     local key = shortSender .. ":" .. word
@@ -157,7 +153,7 @@ function Hooter:OnShareChunkReceived(sender, word, chunkNum, totalChunks, data)
     if not pendingChunks[key] then
         pendingChunks[key] = { chunks = {}, total = totalChunks, time = GetTime() }
         -- Schedule cleanup for stale pending entries
-        C_Timer.After(PENDING_TIMEOUT, function()
+        C_Timer.After(Hooter.SHARE.PENDING_TIMEOUT, function()
             pendingChunks[key] = nil
         end)
     end
@@ -185,30 +181,25 @@ end
 
 -- Store assembled share data in cache
 function Hooter:CacheShareData(sender, word, data)
-    -- Evict expired entries
+    -- Single pass: expire stale entries, count live ones, track oldest for eviction
     local now = GetTime()
-    for k, v in pairs(shareCache) do
-        if now - v.time > SHARE_TTL then
-            shareCache[k] = nil
-        end
-    end
-
-    -- Cap at MAX_CACHE entries, evict oldest if full
     local count = 0
-    for _ in pairs(shareCache) do
-        count = count + 1
-    end
-    if count >= MAX_CACHE then
-        local oldestKey, oldestTime = nil, math.huge
-        for k, v in pairs(shareCache) do
+    local oldestKey, oldestTime = nil, math.huge
+
+    for k, v in pairs(shareCache) do
+        if now - v.time > Hooter.SHARE.TTL then
+            shareCache[k] = nil
+        else
+            count = count + 1
             if v.time < oldestTime then
                 oldestKey = k
                 oldestTime = v.time
             end
         end
-        if oldestKey then
-            shareCache[oldestKey] = nil
-        end
+    end
+
+    if count >= Hooter.SHARE.MAX_CACHE and oldestKey then
+        shareCache[oldestKey] = nil
     end
 
     shareCache[sender .. ":" .. word] = { data = data, time = now }

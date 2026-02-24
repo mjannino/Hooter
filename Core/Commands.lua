@@ -19,38 +19,30 @@ function Hooter:InitCommands()
     end
 end
 
+local COMMANDS = {
+    enable   = "Cmd_enable",
+    disable  = "Cmd_disable",
+    add      = "Cmd_add",
+    remove   = "Cmd_remove",
+    list     = "Cmd_list",
+    export   = "Cmd_export",
+    import   = "Cmd_import",
+    share    = "Cmd_share",
+    cooldown = "Cmd_cooldown",
+    delay    = "Cmd_delay",
+    unique   = "Cmd_unique",
+    help     = "PrintHelp",
+}
+
 function Hooter:HandleCommand(input)
     local cmd, rest = input:match("^(%S+)%s*(.*)$")
     if not cmd then
         self:OpenOptions()
         return
     end
-    cmd = cmd:lower()
-
-    if cmd == "enable" then
-        self:Cmd_enable()
-    elseif cmd == "disable" then
-        self:Cmd_disable()
-    elseif cmd == "add" then
-        self:Cmd_add(rest)
-    elseif cmd == "remove" then
-        self:Cmd_remove(rest)
-    elseif cmd == "list" then
-        self:Cmd_list()
-    elseif cmd == "export" then
-        self:Cmd_export(rest)
-    elseif cmd == "import" then
-        self:Cmd_import(rest)
-    elseif cmd == "share" then
-        self:Cmd_share(rest)
-    elseif cmd == "cooldown" then
-        self:Cmd_cooldown(rest)
-    elseif cmd == "delay" then
-        self:Cmd_delay(rest)
-    elseif cmd == "unique" then
-        self:Cmd_unique(rest)
-    elseif cmd == "help" then
-        self:PrintHelp()
+    local handler = COMMANDS[cmd:lower()]
+    if handler then
+        self[handler](self, rest)
     else
         self:PrintError("Unknown command: " .. cmd)
         self:PrintHelp()
@@ -159,10 +151,6 @@ function Hooter:Cmd_export(rest)
         self:PrintError(err)
         return
     end
-    -- Copy to clipboard via editbox
-    if not self.exportDialog then
-        self:CreateExportDialog()
-    end
     self.exportDialog.editBox:SetText(str)
     self.exportDialog:Show()
     self.exportDialog.editBox:HighlightText()
@@ -172,10 +160,6 @@ end
 
 function Hooter:Cmd_import(rest)
     if not rest or rest == "" then
-        -- Open import dialog
-        if not self.importDialog then
-            self:CreateImportDialog()
-        end
         self.importDialog.editBox:SetText("")
         self.importDialog:Show()
         self.importDialog.editBox:SetFocus()
@@ -254,114 +238,4 @@ function Hooter:Cmd_unique(rest)
     local status = trigger.forceUnique and "|cff00ff00ON|r" or "|cffff0000OFF|r"
     local overflowStr = trigger.forceUnique and (" (overflow: " .. (trigger.uniqueOverflow or "silent") .. ")") or ""
     self:Print("Force unique for |cff00ccff!" .. word .. "|r: " .. status .. overflowStr)
-end
-
--- Export/Import dialog frames (reusable popups)
-function Hooter:CreateExportDialog()
-    local f = CreateFrame("Frame", "HooterExportDialog", UIParent, "BackdropTemplate")
-    f:SetSize(450, 200)
-    f:SetPoint("CENTER")
-    f:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true, tileSize = 32, edgeSize = 32,
-        insets = { left = 8, right = 8, top = 8, bottom = 8 },
-    })
-    f:SetFrameStrata("DIALOG")
-    f:SetMovable(true)
-    f:EnableMouse(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop", f.StopMovingOrSizing)
-    f:Hide()
-
-    local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", 0, -16)
-    title:SetText("Hooter - Export")
-
-    local scrollFrame = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", 16, -40)
-    scrollFrame:SetPoint("BOTTOMRIGHT", -32, 40)
-
-    local editBox = CreateFrame("EditBox", nil, scrollFrame)
-    editBox:SetMultiLine(true)
-    editBox:SetAutoFocus(false)
-    editBox:SetFontObject(ChatFontNormal)
-    local sw = scrollFrame:GetWidth()
-    editBox:SetWidth((sw and sw > 0) and sw or 390)
-    editBox:SetScript("OnEscapePressed", function() f:Hide() end)
-    scrollFrame:SetScrollChild(editBox)
-
-    local closeBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    closeBtn:SetSize(80, 22)
-    closeBtn:SetPoint("BOTTOM", 0, 12)
-    closeBtn:SetText("Close")
-    closeBtn:SetScript("OnClick", function() f:Hide() end)
-
-    f.editBox = editBox
-    self.exportDialog = f
-end
-
-function Hooter:CreateImportDialog()
-    local f = CreateFrame("Frame", "HooterImportDialog", UIParent, "BackdropTemplate")
-    f:SetSize(450, 200)
-    f:SetPoint("CENTER")
-    f:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true, tileSize = 32, edgeSize = 32,
-        insets = { left = 8, right = 8, top = 8, bottom = 8 },
-    })
-    f:SetFrameStrata("DIALOG")
-    f:SetMovable(true)
-    f:EnableMouse(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop", f.StopMovingOrSizing)
-    f:Hide()
-
-    local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", 0, -16)
-    title:SetText("Hooter - Import")
-
-    local scrollFrame = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", 16, -40)
-    scrollFrame:SetPoint("BOTTOMRIGHT", -32, 40)
-
-    local editBox = CreateFrame("EditBox", nil, scrollFrame)
-    editBox:SetMultiLine(true)
-    editBox:SetAutoFocus(false)
-    editBox:SetFontObject(ChatFontNormal)
-    local sw = scrollFrame:GetWidth()
-    editBox:SetWidth((sw and sw > 0) and sw or 390)
-    editBox:SetScript("OnEscapePressed", function() f:Hide() end)
-    scrollFrame:SetScrollChild(editBox)
-
-    local importBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    importBtn:SetSize(80, 22)
-    importBtn:SetPoint("BOTTOMRIGHT", -100, 12)
-    importBtn:SetText("Import")
-    importBtn:SetScript("OnClick", function()
-        local text = editBox:GetText()
-        if text and text ~= "" then
-            local ok, result = Hooter:ImportConfig(text)
-            if ok then
-                Hooter:Print("Imported trigger |cff00ccff!" .. result .. "|r successfully.")
-                Hooter:RefreshTriggerList()
-                Hooter:RefreshResponseList()
-                f:Hide()
-            else
-                Hooter:PrintError("Import failed: " .. result)
-            end
-        end
-    end)
-
-    local closeBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    closeBtn:SetSize(80, 22)
-    closeBtn:SetPoint("BOTTOMLEFT", 100, 12)
-    closeBtn:SetText("Cancel")
-    closeBtn:SetScript("OnClick", function() f:Hide() end)
-
-    f.editBox = editBox
-    self.importDialog = f
 end

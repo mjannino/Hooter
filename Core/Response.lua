@@ -1,16 +1,5 @@
 local _, Hooter = ...
 
--- Event name → SendChatMessage chatType
-local EVENT_TO_CHAT = {
-    CHAT_MSG_PARTY         = "PARTY",
-    CHAT_MSG_PARTY_LEADER  = "PARTY",
-    CHAT_MSG_RAID          = "RAID",
-    CHAT_MSG_RAID_LEADER   = "RAID",
-    CHAT_MSG_GUILD         = "GUILD",
-    CHAT_MSG_WHISPER       = "WHISPER",
-    CHAT_MSG_INSTANCE_CHAT = "INSTANCE_CHAT",
-}
-
 -- Cooldown tracking: trigger_word → GetTime() of last response
 Hooter.cooldowns = {}
 
@@ -20,6 +9,9 @@ Hooter.burstSuppressUntil = 0
 
 -- Sanitize response text by inserting a space into any !word that matches an
 -- enabled trigger, breaking the pattern so other Hooter clients won't match it.
+-- Why: the scanner uses !(%w+) to detect triggers, so inserting a space between
+-- ! and the word breaks that pattern, preventing infinite response loops between
+-- Hooter clients.
 function Hooter:SanitizeResponse(text)
     return text:gsub("!(%w+)", function(word)
         local trigger = self.db.triggers[word:lower()]
@@ -30,15 +22,12 @@ function Hooter:SanitizeResponse(text)
     end)
 end
 
-function Hooter:QueueResponse(triggerWord, triggerData, event, sender)
-    local now = GetTime()
-
-    -- Burst suppression: if we tripped the breaker, suppress all triggers
+-- Check if burst breaker is active, prune old fires, and trip breaker if threshold exceeded
+local function IsBurstSuppressed(self, now)
     if now < self.burstSuppressUntil then
-        return
+        return true
     end
 
-    -- Burst tracking: prune old entries and check count
     local window = self.db.settings.burstWindow
     local pruned = {}
     for _, t in ipairs(self.recentFires) do
@@ -52,17 +41,25 @@ function Hooter:QueueResponse(triggerWord, triggerData, event, sender)
         self.burstSuppressUntil = now + self.db.settings.burstCooldown
         self:Print("|cffff6600Burst detected — suppressing all triggers for "
             .. self.db.settings.burstCooldown .. "s.|r")
-        return
+        return true
     end
 
-    -- Per-trigger cooldown
+    return false
+end
+
+-- Check if the per-trigger cooldown is still active
+local function IsOnCooldown(self, triggerWord, now)
     local lastFired = self.cooldowns[triggerWord]
-    if lastFired and (now - lastFired) < self.db.settings.cooldown then
-        return
-    end
-    self.cooldowns[triggerWord] = now
+    return lastFired and (now - lastFired) < self.db.settings.cooldown
+end
 
-    -- Record this fire for burst tracking
+function Hooter:QueueResponse(triggerWord, triggerData, event, sender)
+    local now = GetTime()
+
+    if IsBurstSuppressed(self, now) then return end
+    if IsOnCooldown(self, triggerWord, now) then return end
+
+    self.cooldowns[triggerWord] = now
     self.recentFires[#self.recentFires + 1] = now
 
     -- If forceUnique is enabled and channel supports coordination, use coordination path
@@ -71,21 +68,13 @@ function Hooter:QueueResponse(triggerWord, triggerData, event, sender)
         return
     end
 
-    -- Pick random response
+    -- Pick random response and send after delay
     local response = triggerData.responses[math.random(#triggerData.responses)]
-
-    -- Calculate random delay within configured range
-    local min = self.db.settings.minDelay
-    local max = self.db.settings.maxDelay
-    local delay = min + (math.random() * (max - min))
-
-    -- Determine chat type and target
-    local chatType = EVENT_TO_CHAT[event]
+    local chatType = self.EVENT_TO_CHAT[event]
     local target = (chatType == "WHISPER") and sender or nil
-
-    -- Schedule delayed response (sanitize before sending)
     local sanitized = self:SanitizeResponse(response)
-    C_Timer.After(delay, function()
+
+    C_Timer.After(self:CalculateDelay(), function()
         C_ChatInfo.SendChatMessage(sanitized, chatType, nil, target)
     end)
 end

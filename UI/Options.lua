@@ -24,8 +24,15 @@ end
 
 function Hooter:BuildOptionsPanel(panel)
     local yOffset = -16
+    yOffset = self:BuildHeaderSection(panel, yOffset)
+    yOffset = self:BuildSettingsSection(panel, yOffset)
+    yOffset = self:BuildBurstSection(panel, yOffset)
+    yOffset = self:BuildTriggerSection(panel, yOffset)
+    self:BuildResponseSection(panel, yOffset)
+    self:RegisterPopups()
+end
 
-    -- Title
+function Hooter:BuildHeaderSection(panel, yOffset)
     local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 16, yOffset)
     title:SetText("Hooter v" .. self.VERSION)
@@ -35,9 +42,6 @@ function Hooter:BuildOptionsPanel(panel)
     subtitle:SetPoint("TOPLEFT", 16, yOffset)
     subtitle:SetText("Chat trigger auto-response addon with shareable configurations")
     yOffset = yOffset - 30
-
-
-    -- Enable/Disable Checkbox
 
     local enableCB = CreateFrame("CheckButton", "HooterEnableCheck", panel, "UICheckButtonTemplate")
     enableCB:SetPoint("TOPLEFT", 16, yOffset)
@@ -50,9 +54,10 @@ function Hooter:BuildOptionsPanel(panel)
     end)
     yOffset = yOffset - 30
 
+    return yOffset
+end
 
-    -- Settings Sliders
-
+function Hooter:BuildSettingsSection(panel, yOffset)
     yOffset = yOffset - 10
     local settingsHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     settingsHeader:SetPoint("TOPLEFT", 16, yOffset)
@@ -87,7 +92,10 @@ function Hooter:BuildOptionsPanel(panel)
         end
     end)
 
-    -- Burst Detection Sliders
+    return yOffset
+end
+
+function Hooter:BuildBurstSection(panel, yOffset)
     yOffset = yOffset - 10
     local burstHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     burstHeader:SetPoint("TOPLEFT", 16, yOffset)
@@ -106,9 +114,10 @@ function Hooter:BuildOptionsPanel(panel)
         Hooter.db.settings.burstCooldown = value
     end)
 
+    return yOffset
+end
 
-    -- Trigger Management
-
+function Hooter:BuildTriggerSection(panel, yOffset)
     yOffset = yOffset - 20
     local trigHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     trigHeader:SetPoint("TOPLEFT", 16, yOffset)
@@ -138,7 +147,9 @@ function Hooter:BuildOptionsPanel(panel)
     importBtn:SetPoint("LEFT", addBtn, "RIGHT", 4, 0)
     importBtn:SetText("Import")
     importBtn:SetScript("OnClick", function()
-        Hooter:Cmd_import("")
+        Hooter.importDialog.editBox:SetText("")
+        Hooter.importDialog:Show()
+        Hooter.importDialog.editBox:SetFocus()
     end)
 
     local exportBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
@@ -150,7 +161,15 @@ function Hooter:BuildOptionsPanel(panel)
             Hooter:PrintError("Select a trigger to export.")
             return
         end
-        Hooter:Cmd_export("!" .. selectedTrigger)
+        local str, err = Hooter:ExportTrigger(selectedTrigger)
+        if not str then
+            Hooter:PrintError(err)
+            return
+        end
+        Hooter.exportDialog.editBox:SetText(str)
+        Hooter.exportDialog:Show()
+        Hooter.exportDialog.editBox:HighlightText()
+        Hooter.exportDialog.editBox:SetFocus()
     end)
 
     local shareBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
@@ -171,7 +190,6 @@ function Hooter:BuildOptionsPanel(panel)
     end)
 
     yOffset = yOffset - 30
-
 
     -- Trigger Edit Row (hidden when no trigger selected)
 
@@ -239,7 +257,6 @@ function Hooter:BuildOptionsPanel(panel)
 
     yOffset = yOffset - 30
 
-
     -- Force Unique Row (hidden when no trigger selected)
 
     local uniqueRow = CreateFrame("Frame", nil, panel)
@@ -289,9 +306,10 @@ function Hooter:BuildOptionsPanel(panel)
 
     yOffset = yOffset - 30
 
+    return yOffset
+end
 
-    -- Response Section
-
+function Hooter:BuildResponseSection(panel, yOffset)
     local respHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     respHeader:SetPoint("TOPLEFT", 16, yOffset)
     respHeader:SetText("Responses (select a trigger)")
@@ -309,7 +327,6 @@ function Hooter:BuildOptionsPanel(panel)
     self.responseDropdown = responseDropdown
 
     yOffset = yOffset - 30
-
 
     -- Response Edit Row (hidden when no response selected)
 
@@ -363,7 +380,6 @@ function Hooter:BuildOptionsPanel(panel)
 
     yOffset = yOffset - 30
 
-
     -- Add Response Row
 
     local addRespBox = CreateFrame("EditBox", "HooterAddRespBox", panel, "InputBoxTemplate")
@@ -392,8 +408,7 @@ function Hooter:BuildOptionsPanel(panel)
         addRespBtn:Click()
     end)
 
-    -- Static Popups
-    self:RegisterPopups()
+    return yOffset
 end
 
 
