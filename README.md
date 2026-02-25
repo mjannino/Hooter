@@ -34,10 +34,3 @@ Hooter listens to party, raid, guild, whisper, and instance chat for messages co
 
 An options panel is also available under **ESC > Options > AddOns > Hooter**.
 
-## Installation
-
-Copy the `Hooter` folder into your WoW addons directory:
-
-```
-World of Warcraft/_retail_/Interface/AddOns/Hooter/
-```
