@@ -17,6 +17,19 @@ function Hooter:InitOptions()
     local category = Settings.RegisterCanvasLayoutCategory(panel, panel.name)
     Settings.RegisterAddOnCategory(category)
     self.settingsCategory = category
+
+    -- Advanced sub-category
+    local advPanel = CreateFrame("Frame")
+    advPanel.name = "Advanced"
+    advPanel:Hide()
+
+    advPanel:SetScript("OnShow", function()
+        Hooter:BuildAdvancedPanel(advPanel)
+        advPanel:SetScript("OnShow", nil)
+    end)
+
+    local advCategory = Settings.RegisterCanvasLayoutSubcategory(category, advPanel, advPanel.name)
+    self.advSettingsCategory = advCategory
 end
 
 
@@ -26,7 +39,7 @@ function Hooter:BuildOptionsPanel(panel)
     local yOffset = -16
     yOffset = self:BuildHeaderSection(panel, yOffset)
     yOffset = self:BuildSettingsSection(panel, yOffset)
-    yOffset = self:BuildBurstSection(panel, yOffset)
+    yOffset = self:BuildAdvancedButton(panel, yOffset)
     yOffset = self:BuildTriggerSection(panel, yOffset)
     self:BuildResponseSection(panel, yOffset)
     self:RegisterPopups()
@@ -93,6 +106,35 @@ function Hooter:BuildSettingsSection(panel, yOffset)
     end)
 
     return yOffset
+end
+
+function Hooter:BuildAdvancedButton(panel, yOffset)
+    yOffset = yOffset - 10
+    local btn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    btn:SetSize(140, 22)
+    btn:SetPoint("TOPLEFT", 16, yOffset)
+    btn:SetText("Advanced Settings")
+    btn:SetScript("OnClick", function()
+        Settings.OpenToCategory(Hooter.advSettingsCategory.ID)
+    end)
+    yOffset = yOffset - 30
+    return yOffset
+end
+
+function Hooter:BuildAdvancedPanel(panel)
+    local yOffset = -16
+
+    local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+    title:SetPoint("TOPLEFT", 16, yOffset)
+    title:SetText("Hooter - Advanced Settings")
+    yOffset = yOffset - 30
+
+    local subtitle = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    subtitle:SetPoint("TOPLEFT", 16, yOffset)
+    subtitle:SetText("Settings that rarely need adjustment")
+    yOffset = yOffset - 30
+
+    self:BuildBurstSection(panel, yOffset)
 end
 
 function Hooter:BuildBurstSection(panel, yOffset)
