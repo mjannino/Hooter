@@ -53,6 +53,11 @@ end
 
 -- Chat filter: replace marker text with clickable hyperlink
 function Hooter:FilterChatMessage(frame, event, msg, sender, ...)
+    -- Secret payloads cannot be inspected; pass them through untouched
+    if self:IsChatRestricted(msg, sender) then
+        return false, msg, sender, ...
+    end
+
     local word, count = msg:match(MARKER_PATTERN)
     if not word then
         return false, msg, sender, ...

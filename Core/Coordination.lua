@@ -32,6 +32,9 @@ end
 
 -- Event handler for addon messages
 function Hooter:CHAT_MSG_ADDON(prefix, message, distribution, sender)
+    -- Secret payloads cannot be compared or parsed (see IsChatRestricted)
+    if self:IsChatRestricted(prefix, message, sender) then return end
+
     if prefix ~= ADDON_PREFIX then return end
 
     local msgType, eventID = message:match("^(%u+):(.+)$")

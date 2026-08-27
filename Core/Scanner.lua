@@ -20,6 +20,9 @@ end
 
 -- Shared message handler (CraftScan pipeline with early-out pattern)
 function Hooter:OnChatMessage(event, message, sender, ...)
+    -- Early-out: secret payloads cannot be inspected (see IsChatRestricted)
+    if self:IsChatRestricted(message, sender) then return end
+
     -- Early-out: no ! means no trigger
     if not message:find("!", 1, true) then return end
 
