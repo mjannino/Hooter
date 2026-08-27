@@ -9,6 +9,7 @@ exclude_files = {
 
 read_globals = {
     "CreateFrame", "C_ChatInfo", "C_Timer", "GetTime",
+    "issecretvalue",
     "UnitName", "Ambiguate", "CopyTable",
     "StaticPopup_Show", "Settings",
     "ChatFrame_AddMessageEventFilter", "hooksecurefunc",
