@@ -4,7 +4,12 @@ local ADDON_NAME, Hooter = ...
 _G.Hooter = Hooter
 
 -- Constants
-Hooter.VERSION = "1.0.0"
+-- Replaced by the BigWigs packager at release time. In a plain source
+-- checkout the keyword is left untouched, so fall back to "dev".
+Hooter.VERSION = "@project-version@"
+if Hooter.VERSION:find("@project", 1, true) then
+    Hooter.VERSION = "dev"
+end
 Hooter.EXPORT_PREFIX = "!HT1:"
 
 -- Event frame with method-name-based dispatch (CraftScan pattern)
